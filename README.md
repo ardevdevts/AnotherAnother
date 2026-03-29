@@ -1,6 +1,12 @@
-# Another
+<p align="center">
+  <img src="src-tauri/icons/icon.png" width="128" alt="Another app icon" />
+</p>
+
+<h1 align="center">Another</h1>
 
 A desktop app for mirroring and controlling Android devices over USB. Built with Tauri, React, and Rust.
+
+![Another](shot.png)
 
 Uses a bundled [scrcpy-server](https://github.com/Genymobile/scrcpy) to stream video from the device and send control inputs back.
 
