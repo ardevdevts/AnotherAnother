@@ -146,6 +146,15 @@ bun install
 bun tauri dev
 ```
 
+#### For Ubuntu/Debian (including WSL)
+
+You need to install the development packages for WebKitGTK, ALSA, and pkg-config.
+
+```sh
+sudo apt update
+sudo apt install libwebkit2gtk-4.1-dev  pkg-config libasound2-dev
+```
+
 ## Build
 
 ```sh
