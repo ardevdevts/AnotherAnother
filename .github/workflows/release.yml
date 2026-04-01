@@ -26,17 +26,17 @@ permissions:
 jobs:
   release-notes:
     runs-on: ubuntu-latest
-    env:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     outputs:
-      notes: ${{ steps.ai.outputs.notes || steps.fallback.outputs.notes }}
+      notes: ${{ steps.notes.outputs.notes }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Get commit log
-        id: commits
+      - name: Generate release notes
+        id: notes
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           PREV_TAG=$(git tag --sort=-v:refname | grep '^v' | sed -n '2p')
           if [ -z "$PREV_TAG" ]; then
@@ -47,50 +47,30 @@ jobs:
           if [ -z "$LOG" ]; then
             LOG="- Bug fixes and improvements"
           fi
-          {
-            echo "log<<EOFDELIM"
-            echo "$LOG"
-            echo "EOFDELIM"
-          } >> "$GITHUB_OUTPUT"
 
-      - name: Generate AI release notes
-        id: ai
-        if: env.GEMINI_API_KEY != ''
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          prompt: |
-            You are writing release notes for "Another", an Android screen mirroring and control desktop app.
-            Given these git commits, write concise, user-friendly release notes in markdown.
-            Group changes into sections like "New Features", "Improvements", "Bug Fixes" as needed.
-            Skip merge commits and internal refactors. Keep it short and clear.
-            Do not use em dashes. Do not add any preamble.
-            Start directly with ## What's New
+          AI_NOTES=""
+          if [ -n "$GEMINI_API_KEY" ]; then
+            PROMPT="You are writing release notes for Another, an Android screen mirroring and control desktop app. Given these git commits, write concise user-friendly release notes in markdown. Group into New Features, Improvements, Bug Fixes as needed. Skip merge commits and internal refactors. Keep it short. Do not use em dashes. Start directly with ## What's New\n\nCommits:\n${LOG}"
 
-            Commits:
-            ${{ steps.commits.outputs.log }}
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        continue-on-error: true
+            BODY=$(jq -n --arg p "$PROMPT" '{contents:[{parts:[{text:$p}]}]}')
 
-      - name: Save AI notes
-        if: steps.ai.outcome == 'success' && steps.ai.outputs.text != ''
-        id: save-ai
-        run: |
+            RESPONSE=$(curl -s -X POST \
+              "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}" \
+              -H "Content-Type: application/json" \
+              -d "$BODY" 2>/dev/null || true)
+
+            AI_NOTES=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null || true)
+          fi
+
+          if [ -n "$AI_NOTES" ]; then
+            NOTES="$AI_NOTES"
+          else
+            NOTES=$(printf "## What's New\n\n%s" "$LOG")
+          fi
+
           {
             echo "notes<<EOFDELIM"
-            echo "${{ steps.ai.outputs.text }}"
-            echo "EOFDELIM"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Fallback release notes
-        id: fallback
-        if: steps.ai.outcome != 'success' || steps.ai.outputs.text == ''
-        run: |
-          {
-            echo "notes<<EOFDELIM"
-            echo "## What's New"
-            echo ""
-            echo "${{ steps.commits.outputs.log }}"
+            echo "$NOTES"
             echo "EOFDELIM"
           } >> "$GITHUB_OUTPUT"
 
