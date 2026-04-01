@@ -26,6 +26,8 @@ permissions:
 jobs:
   release-notes:
     runs-on: ubuntu-latest
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     outputs:
       notes: ${{ steps.ai.outputs.notes || steps.fallback.outputs.notes }}
     steps:
@@ -53,8 +55,8 @@ jobs:
 
       - name: Generate AI release notes
         id: ai
-        if: ${{ secrets.GEMINI_API_KEY != '' }}
-        uses: google-github-actions/run-gemini-cli@v1
+        if: env.GEMINI_API_KEY != ''
+        uses: google-github-actions/run-gemini-cli@v0
         with:
           prompt: |
             You are writing release notes for "Another", an Android screen mirroring and control desktop app.
