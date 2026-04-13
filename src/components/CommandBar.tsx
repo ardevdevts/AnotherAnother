@@ -45,7 +45,7 @@ export function CommandBar({ open, onOpenChange, commands }: CommandBarProps) {
       open={open}
       onOpenChange={onOpenChange}
       showCloseButton={false}
-      className="w-[560px] max-w-[calc(100%-2rem)]"
+      className="w-140 max-w-[calc(100%-2rem)]"
     >
       <Command className="rounded-4xl border border-border bg-popover">
         <CommandInput autoFocus placeholder="Type a command..." />

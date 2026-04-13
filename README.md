@@ -2,14 +2,14 @@
   <img src="src-tauri/icons/icon.png" width="128" alt="Another app icon" />
 </p>
 
-<h1 align="center">Another</h1>
+<h1 align="center">AnotherAnother</h1>
 
 
 Fork from "https://github.com/Zfinix/another". :3 Built to make the UI shortcut first and eliminate struggles in the UI by switching to tailwindcss and shadcn. Hotkeys based. MCP/AI eliminated, as well as mac builds cuz i cant personally sign them and whatever, dont have a Mac. Also to fix windows issues in terminal spamming in the communication to the CLI. 
 
 A desktop app for mirroring and controlling Android devices. Built with Tauri, React, and Rust.
 
-![Another](shot.png)
+![another](image.png)
 
 Uses a bundled [scrcpy-server](https://github.com/Genymobile/scrcpy) to stream video from the device and send control inputs back.
 
@@ -58,9 +58,8 @@ Check releases
 
 | Platform | Status |
 |----------|--------|
-| macOS | Supported |
-| Linux | Experimental |
-| Windows | Experimental |
+| Linux | Supported |
+| Windows | Supported |
 
 ## Prerequisites
 

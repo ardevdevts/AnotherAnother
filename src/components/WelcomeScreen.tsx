@@ -63,11 +63,22 @@ export function WelcomeScreen({
   const [showWifiDialog, setShowWifiDialog] = useState(false);
   const [wifiAddress, setWifiAddress] = useState("");
   const [wifiConnecting, setWifiConnecting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [togglingSerial, setTogglingSerial] = useState<string | null>(null);
   const [editingSerial, setEditingSerial] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; device: Device } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  const runDeviceRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.resolve(onRefreshDevices());
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 600);
+    }
+  };
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -102,7 +113,7 @@ export function WelcomeScreen({
         const addr = await invoke<string>("wifi_enable", { serial: device.serial });
         showToast(`${getDeviceDisplayName(device)} now available at ${addr}`, "info");
       }
-      onRefreshDevices();
+      await runDeviceRefresh();
     } catch (error) {
       showToast(`${error}`);
     } finally {
@@ -124,7 +135,7 @@ export function WelcomeScreen({
       showToast("Device connected via WiFi", "info");
       setWifiAddress("");
       setShowWifiDialog(false);
-      onRefreshDevices();
+      await runDeviceRefresh();
     } catch (error) {
       showToast(`Connection failed: ${error}`);
     } finally {
@@ -160,19 +171,27 @@ export function WelcomeScreen({
       <div className="w-full max-w-md space-y-2">
         <div className="flex items-center justify-between px-1">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {devices.length > 0 ? `${devices.length} device${devices.length > 1 ? "s" : ""} found` : "Searching..."}
+            {devices.length > 0
+              ? `${devices.length} device${devices.length > 1 ? "s" : ""} found`
+              : isRefreshing
+                ? "Searching..."
+                : "No devices"}
           </span>
-          <Button variant="ghost" size="sm" onClick={onRefreshDevices}>
-            <ArrowPathIcon className="size-4" />
+          <Button variant="ghost" size="sm" onClick={runDeviceRefresh} disabled={isRefreshing}>
+            {isRefreshing ? <Spinner className="size-4" /> : <ArrowPathIcon className="size-4" />}
             Refresh
           </Button>
         </div>
 
         {devices.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-border bg-card/80 px-6 py-8 text-center">
-            <SignalIcon className="mx-auto mb-3 size-8 text-muted-foreground" />
+            {isRefreshing ? (
+              <Spinner className="mx-auto mb-3 size-8 text-muted-foreground" />
+            ) : (
+              <SignalIcon className="mx-auto mb-3 size-8 text-muted-foreground" />
+            )}
             <p className="text-sm text-muted-foreground">
-              No devices detected.
+              {isRefreshing ? "Searching for devices..." : "No devices detected."}
               <br />
               Connect your Android via USB and enable USB debugging.
             </p>

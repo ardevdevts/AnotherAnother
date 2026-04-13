@@ -271,66 +271,8 @@ export function SettingsDialog({
               />
             </SettingRow>
             <p className="text-xs text-muted-foreground">Requires Android 11+.</p>
-          </SettingsSection>
 
-          <SettingsSection title="MCP Server">
-            <SettingRow label="Enable MCP server">
-              <Switch checked={mcpEnabled} onCheckedChange={handleMcpToggle} />
-            </SettingRow>
-
-            {mcpRunning ? <Badge variant="outline">Running on port {mcpPort}</Badge> : null}
-
-            {mcpEnabled && (
-              <div className="space-y-3 rounded-3xl border border-border bg-muted/30 p-4">
-                <p className="text-sm text-muted-foreground">
-                  Let AI agents control your Android device.
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 truncate rounded-xl bg-card px-3 py-2 font-mono text-xs ring-1 ring-border">
-                    {getMcpUrl(mcpPort)}
-                  </code>
-                  <Button variant="outline" size="sm" onClick={handleCopyUrl}>
-                    <ClipboardDocumentIcon className="size-4" />
-                    {copiedUrl ? "Copied" : "Copy URL"}
-                  </Button>
-                </div>
-
-                <Button
-                  variant="ghost"
-                  className="w-full justify-between px-2"
-                  onClick={() => setMcpInstructionsOpen((value) => !value)}
-                >
-                  Setup instructions
-                  <ChevronDownIcon
-                    className={cn(
-                      "size-4 transition-transform",
-                      mcpInstructionsOpen && "rotate-180"
-                    )}
-                  />
-                </Button>
-
-                {mcpInstructionsOpen && (
-                  <div className="space-y-2 rounded-2xl border border-border bg-card p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Claude Code, Claude Desktop, Cursor, etc.
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCopySnippet("config", mcpConfig)}
-                      >
-                        <ClipboardDocumentIcon className="size-4" />
-                        {copiedSnippet === "config" ? "Copied" : "Copy"}
-                      </Button>
-                    </div>
-                    <pre className="overflow-x-auto rounded-xl bg-muted p-3 font-mono text-xs">
-                      {mcpConfig}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            )}
+          
           </SettingsSection>
         </div>
 
