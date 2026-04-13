@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useHotkeys } from "@tanstack/react-hotkeys";
 import type { Settings, Device } from "./types";
 import { PRESETS } from "./types";
 import { useTheme } from "./hooks/useTheme";
@@ -15,17 +16,16 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { CommandBar } from "./components/CommandBar";
 import { MacrosScreen } from "./components/MacrosScreen";
 import { ToastContainer } from "./components/ToastContainer";
-import "./App.css";
 
 const isMac = navigator.userAgent.includes("Mac");
 const MOD = isMac ? "⌘" : "Ctrl";
+const MOD_KEY = isMac ? "Meta" : "Ctrl";
 
 interface CommandDef {
   id: string;
   label: string;
   keys: string[];
-  key: string;
-  shift?: boolean;
+  hotkey: string;
   section: string;
   action: () => void;
 }
@@ -138,29 +138,46 @@ function App() {
   };
 
   const commands: CommandDef[] = useMemo(() => [
-    { id: "vol-up", label: "Volume Up", keys: [MOD, "+"], key: "=", section: "Audio", action: () => pressButton("volume_up") },
-    { id: "vol-down", label: "Volume Down", keys: [MOD, "-"], key: "-", section: "Audio", action: () => pressButton("volume_down") },
-    { id: "mute", label: muted ? "Unmute Audio" : "Mute Audio", keys: [MOD, "M"], key: "m", section: "Audio", action: () => setMuted(!muted) },
-    { id: "screenshot", label: "Take Screenshot", keys: [MOD, "S"], key: "s", section: "Actions", action: takeScreenshot },
-    { id: "record", label: recording ? "Stop Recording" : "Record Screen", keys: [MOD, "⇧", "R"], key: "r", shift: true, section: "Actions", action: toggleRecording },
-    { id: "settings", label: "Open Settings", keys: [MOD, ","], key: ",", section: "Actions", action: () => setShowSettings(true) },
-    { id: "theme", label: "Toggle Theme", keys: [MOD, "T"], key: "t", section: "Actions", action: cycleTheme },
-    { id: "disconnect", label: "Disconnect", keys: [MOD, "D"], key: "d", section: "Actions", action: disconnect },
-    { id: "home", label: "Home", keys: [MOD, "H"], key: "h", section: "Device", action: () => pressButton("home") },
-    { id: "back", label: "Back", keys: [MOD, "B"], key: "b", section: "Device", action: () => pressButton("back") },
-    { id: "recents", label: "Recent Apps", keys: [MOD, "R"], key: "r", section: "Device", action: () => pressButton("recents") },
-    { id: "power", label: "Power Button", keys: [MOD, "P"], key: "p", section: "Device", action: () => pressButton("power") },
-    { id: "cmdbar", label: "Command Bar", keys: [MOD, "K"], key: "k", section: "Actions", action: () => setShowCommandBar((s) => !s) },
-    { id: "macro-toggle", label: macro.macroRecording ? "Stop Macro Recording" : "Record Macro", keys: [MOD, "⇧", "M"], key: "m", shift: true, section: "Macros", action: macro.toggleRecording },
-    { id: "macro-play", label: "Play Last Macro", keys: [MOD, "⇧", "P"], key: "p", shift: true, section: "Macros", action: () => { if (macro.macros.length > 0) macro.playMacro(macro.macros[macro.macros.length - 1].name); } },
-    { id: "macro-manage", label: "Manage Macros", keys: [MOD, "⇧", "L"], key: "l", shift: true, section: "Macros", action: () => setShowMacros(true) },
-    { id: "macro-export", label: "Export All Macros", keys: [MOD, "⇧", "E"], key: "e", shift: true, section: "Macros", action: macro.exportAllMacros },
-    { id: "macro-import", label: "Import Macros", keys: [MOD, "⇧", "I"], key: "i", shift: true, section: "Macros", action: macro.importMacros },
-    { id: "check-updates", label: "Check for Updates", keys: [MOD, "⇧", "U"], key: "u", shift: true, section: "Actions", action: () => updater.checkForUpdates() },
+    { id: "vol-up", label: "Volume Up", keys: [MOD, "+"], hotkey: `${MOD_KEY}+=`, section: "Audio", action: () => pressButton("volume_up") },
+    { id: "vol-down", label: "Volume Down", keys: [MOD, "-"], hotkey: `${MOD_KEY}+-`, section: "Audio", action: () => pressButton("volume_down") },
+    { id: "mute", label: muted ? "Unmute Audio" : "Mute Audio", keys: [MOD, "M"], hotkey: `${MOD_KEY}+M`, section: "Audio", action: () => setMuted(!muted) },
+    { id: "screenshot", label: "Take Screenshot", keys: [MOD, "S"], hotkey: `${MOD_KEY}+S`, section: "Actions", action: takeScreenshot },
+    { id: "record", label: recording ? "Stop Recording" : "Record Screen", keys: [MOD, "⇧", "R"], hotkey: `${MOD_KEY}+Shift+R`, section: "Actions", action: toggleRecording },
+    { id: "settings", label: "Open Settings", keys: [MOD, ","], hotkey: `${MOD_KEY}+,`, section: "Actions", action: () => setShowSettings(true) },
+    { id: "theme", label: "Toggle Theme", keys: [MOD, "T"], hotkey: `${MOD_KEY}+T`, section: "Actions", action: cycleTheme },
+    { id: "disconnect", label: "Disconnect", keys: [MOD, "D"], hotkey: `${MOD_KEY}+D`, section: "Actions", action: disconnect },
+    { id: "home", label: "Home", keys: [MOD, "H"], hotkey: `${MOD_KEY}+H`, section: "Device", action: () => pressButton("home") },
+    { id: "back", label: "Back", keys: [MOD, "B"], hotkey: `${MOD_KEY}+B`, section: "Device", action: () => pressButton("back") },
+    { id: "recents", label: "Recent Apps", keys: [MOD, "R"], hotkey: `${MOD_KEY}+R`, section: "Device", action: () => pressButton("recents") },
+    { id: "power", label: "Power Button", keys: [MOD, "P"], hotkey: `${MOD_KEY}+P`, section: "Device", action: () => pressButton("power") },
+    { id: "macro-toggle", label: macro.macroRecording ? "Stop Macro Recording" : "Record Macro", keys: [MOD, "⇧", "M"], hotkey: `${MOD_KEY}+Shift+M`, section: "Macros", action: macro.toggleRecording },
+    { id: "macro-play", label: "Play Last Macro", keys: [MOD, "⇧", "P"], hotkey: `${MOD_KEY}+Shift+P`, section: "Macros", action: () => { if (macro.macros.length > 0) macro.playMacro(macro.macros[macro.macros.length - 1].name); } },
+    { id: "macro-manage", label: "Manage Macros", keys: [MOD, "⇧", "L"], hotkey: `${MOD_KEY}+Shift+L`, section: "Macros", action: () => setShowMacros(true) },
+    { id: "macro-export", label: "Export All Macros", keys: [MOD, "⇧", "E"], hotkey: `${MOD_KEY}+Shift+E`, section: "Macros", action: macro.exportAllMacros },
+    { id: "macro-import", label: "Import Macros", keys: [MOD, "⇧", "I"], hotkey: `${MOD_KEY}+Shift+I`, section: "Macros", action: macro.importMacros },
+    { id: "check-updates", label: "Check for Updates", keys: [MOD, "⇧", "U"], hotkey: `${MOD_KEY}+Shift+U`, section: "Actions", action: () => updater.checkForUpdates() },
   ], [muted, recording, setMuted, toggleRecording, pressButton, takeScreenshot, cycleTheme, disconnect, macro.macroRecording, macro.toggleRecording, macro.macros, macro.playMacro, macro.exportAllMacros, macro.importMacros, updater.checkForUpdates]);
 
-  const commandsRef = useRef(commands);
-  commandsRef.current = commands;
+  useHotkeys(
+    commands.map((command) => ({
+      hotkey: command.hotkey as never,
+      callback: (event: KeyboardEvent) => {
+        event.preventDefault();
+        command.action();
+      },
+      options: { enabled: !showCommandBar },
+    }))
+  );
+
+  useHotkeys([
+    {
+      hotkey: `${MOD_KEY}+Alt+C` as never,
+      callback: (event: KeyboardEvent) => {
+        event.preventDefault();
+        setShowCommandBar((state) => !state);
+      },
+    },
+  ]);
 
   useEffect(() => {
     const mcpEnabled = localStorage.getItem("mcp_enabled") !== "false";
@@ -169,24 +186,6 @@ function App() {
       invoke("start_mcp_server", { port }).catch(() => { });
     }
   }, []);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const mod = isMac ? e.metaKey : e.ctrlKey;
-      if (!mod) return;
-      if (showCommandBar && e.key !== "k") return;
-
-      const cmd = commandsRef.current.find(
-        (c) => c.key === e.key.toLowerCase() && !c.shift === !e.shiftKey
-      );
-      if (cmd) {
-        e.preventDefault();
-        cmd.action();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [showCommandBar]);
 
   return (
     <>
@@ -231,12 +230,6 @@ function App() {
           adaptiveInfo={settings.adaptive ? { enabled: true, tierName: adaptive.metrics.tierName, fps: adaptive.metrics.fps } : undefined}
           onToggleRecording={toggleRecording}
           onToggleMacroRecording={macro.toggleRecording}
-          onPressButton={pressButton}
-          onRotateDevice={() => invoke("rotate_device")}
-          onTakeScreenshot={takeScreenshot}
-          onToggleSettings={() => setShowSettings((s) => !s)}
-          onOpenCommandBar={() => setShowCommandBar(true)}
-          onDisconnect={disconnect}
           onCanvasMouseEvent={handleCanvasMouseEvent}
           onWheel={handleWheel}
           onKeyDown={handleKeyDown}

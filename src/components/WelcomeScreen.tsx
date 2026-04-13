@@ -1,19 +1,34 @@
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
-  DevicePhoneMobileIcon,
-  Cog6ToothIcon,
   ArrowPathIcon,
   ChevronRightIcon,
-  SunIcon,
+  Cog6ToothIcon,
+  ComputerDesktopIcon,
+  DevicePhoneMobileIcon,
   MoonIcon,
   SignalIcon,
-  ComputerDesktopIcon,
+  SunIcon,
   WifiIcon,
 } from "@heroicons/react/24/outline";
-import { Dialog } from "@base-ui-components/react/dialog";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Spinner } from "./ui/spinner";
 import type { Device, ThemePreference } from "../types";
-import { getDeviceDisplayName, getDeviceNickname, setDeviceNickname } from "../types";
+import {
+  getDeviceDisplayName,
+  getDeviceNickname,
+  setDeviceNickname,
+} from "../types";
 import appIcon from "../assets/icon.png";
 
 interface WelcomeScreenProps {
@@ -27,8 +42,8 @@ interface WelcomeScreenProps {
   showToast: (msg: string, type?: "error" | "info") => void;
 }
 
-function truncateSerial(s: string) {
-  return s.length > 16 ? s.slice(0, 6) + "..." + s.slice(-4) : s;
+function truncateSerial(serial: string) {
+  return serial.length > 16 ? `${serial.slice(0, 6)}...${serial.slice(-4)}` : serial;
 }
 
 function isWifiDevice(serial: string) {
@@ -56,8 +71,8 @@ export function WelcomeScreen({
 
   useEffect(() => {
     if (!contextMenu) return;
-    const close = (e: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+    const close = (event: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
         setContextMenu(null);
       }
     };
@@ -65,31 +80,13 @@ export function WelcomeScreen({
     return () => window.removeEventListener("mousedown", close);
   }, [contextMenu]);
 
-  const handleContextMenu = (e: React.MouseEvent, device: Device) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY, device });
+  const handleContextMenu = (event: React.MouseEvent, device: Device) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({ x: event.clientX, y: event.clientY, device });
   };
 
-  const handleWifiConnect = async () => {
-    if (!wifiAddress.trim()) return;
-    setWifiConnecting(true);
-    try {
-      const addr = wifiAddress.includes(":") ? wifiAddress : `${wifiAddress}:5555`;
-      await invoke("wifi_connect", { address: addr });
-      showToast("Device connected via WiFi", "info");
-      setWifiAddress("");
-      setShowWifiDialog(false);
-      onRefreshDevices();
-    } catch (e) {
-      showToast(`Connection failed: ${e}`);
-    } finally {
-      setWifiConnecting(false);
-    }
-  };
-
-  const handleToggleWifi = async (e: React.MouseEvent, device: Device) => {
-    e.stopPropagation();
+  const toggleWifiForDevice = async (device: Device) => {
     setTogglingSerial(device.serial);
     try {
       if (isWifiDevice(device.serial)) {
@@ -106,179 +103,222 @@ export function WelcomeScreen({
         showToast(`${getDeviceDisplayName(device)} now available at ${addr}`, "info");
       }
       onRefreshDevices();
-    } catch (e) {
-      showToast(`${e}`);
+    } catch (error) {
+      showToast(`${error}`);
     } finally {
       setTogglingSerial(null);
     }
   };
 
+  const handleToggleWifi = async (event: React.MouseEvent, device: Device) => {
+    event.stopPropagation();
+    await toggleWifiForDevice(device);
+  };
+
+  const handleWifiConnect = async () => {
+    if (!wifiAddress.trim()) return;
+    setWifiConnecting(true);
+    try {
+      const addr = wifiAddress.includes(":") ? wifiAddress : `${wifiAddress}:5555`;
+      await invoke("wifi_connect", { address: addr });
+      showToast("Device connected via WiFi", "info");
+      setWifiAddress("");
+      setShowWifiDialog(false);
+      onRefreshDevices();
+    } catch (error) {
+      showToast(`Connection failed: ${error}`);
+    } finally {
+      setWifiConnecting(false);
+    }
+  };
+
   return (
-    <div className="welcome">
-      <div className="window-drag" data-tauri-drag-region>
-        <div className="toolbar-actions">
-          <button className="toolbar-btn" onClick={onCycleTheme} title={themePref === "light" ? "Light" : themePref === "dark" ? "Dark" : "System"}>
-            {themePref === "light" ? <SunIcon /> : themePref === "dark" ? <MoonIcon /> : <ComputerDesktopIcon />}
-          </button>
-          <button className="toolbar-btn" onClick={() => setShowWifiDialog(true)} title="Connect via WiFi">
-            <WifiIcon />
-          </button>
-          <button className="toolbar-btn" onClick={onOpenSettings} title="Settings">
-            <Cog6ToothIcon />
-          </button>
+    <div className="relative flex h-screen w-screen select-none flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-background to-muted/30 px-5 pt-10">
+      <div
+        className="absolute top-0 right-0 left-0 flex h-10 items-center justify-end border-b border-border bg-card/80 pr-2 backdrop-blur-sm [-webkit-app-region:drag]"
+        data-tauri-drag-region
+      >
+        <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
+          <Button variant="ghost" size="icon-sm" onClick={onCycleTheme} title={themePref}>
+            {themePref === "light" ? <SunIcon className="size-4" /> : themePref === "dark" ? <MoonIcon className="size-4" /> : <ComputerDesktopIcon className="size-4" />}
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={() => setShowWifiDialog(true)} title="Connect via WiFi">
+            <WifiIcon className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} title="Settings">
+            <Cog6ToothIcon className="size-4" />
+          </Button>
         </div>
       </div>
-      <div className="welcome-header">
-        <img src={appIcon} alt="Another" className="welcome-logo" />
-        <h1 className="welcome-title">Another</h1>
-      </div>
-      <p className="welcome-subtitle">Android screen mirroring and control</p>
 
-      <div className="device-list">
-        <div className="device-list-header">
-          <span className="device-list-title">
+      <div className="mb-6 mt-6 flex flex-col items-center gap-3">
+        <img src={appIcon} alt="Another" className="size-16 rounded-2xl ring-1 ring-border" />
+        <h1 className="text-3xl font-semibold tracking-tight">Another</h1>
+        <p className="text-sm text-muted-foreground">Android screen mirroring and control</p>
+      </div>
+
+      <div className="w-full max-w-md space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {devices.length > 0 ? `${devices.length} device${devices.length > 1 ? "s" : ""} found` : "Searching..."}
           </span>
-          <button className="device-list-refresh" onClick={onRefreshDevices}>
-            <ArrowPathIcon /> Refresh
-          </button>
+          <Button variant="ghost" size="sm" onClick={onRefreshDevices}>
+            <ArrowPathIcon className="size-4" />
+            Refresh
+          </Button>
         </div>
 
         {devices.length === 0 ? (
-          <div className="device-empty">
-            <SignalIcon />
-            <p>No devices detected.<br />Connect your Android via USB and enable USB debugging.</p>
+          <div className="rounded-3xl border border-dashed border-border bg-card/80 px-6 py-8 text-center">
+            <SignalIcon className="mx-auto mb-3 size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              No devices detected.
+              <br />
+              Connect your Android via USB and enable USB debugging.
+            </p>
           </div>
         ) : (
-          devices.map((d) => (
-            <div
-              key={d.serial}
-              className="device-card"
-              onClick={() => !connectingSerial && onConnectDevice(d)}
-              onContextMenu={(e) => handleContextMenu(e, d)}
-            >
-              <div className="device-card-icon">
-                <DevicePhoneMobileIcon />
-              </div>
-              <div className="device-card-info">
-                {editingSerial === d.serial ? (
-                  <input
-                    className="device-nickname-input"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onBlur={() => { setDeviceNickname(d.serial, editValue); setEditingSerial(null); }}
-                    onKeyDown={(e) => {
-                      e.stopPropagation();
-                      if (e.key === "Enter") { setDeviceNickname(d.serial, editValue); setEditingSerial(null); }
-                      if (e.key === "Escape") setEditingSerial(null);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    autoFocus
-                  />
-                ) : (
-                  <div
-                    className="device-card-name"
-                    onDoubleClick={(e) => { e.stopPropagation(); setEditingSerial(d.serial); setEditValue(getDeviceDisplayName(d)); }}
-                    title="Double-click to rename"
-                  >
-                    {getDeviceDisplayName(d)}
+          <div className="space-y-2">
+            {devices.map((device) => (
+              <div
+                key={device.serial}
+                className="group flex cursor-pointer items-center gap-3 rounded-3xl border border-border bg-card/90 px-3 py-2 transition-colors hover:bg-accent/50"
+                onClick={() => !connectingSerial && onConnectDevice(device)}
+                onContextMenu={(event) => handleContextMenu(event, device)}
+              >
+                <div className="flex size-10 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                  <DevicePhoneMobileIcon className="size-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  {editingSerial === device.serial ? (
+                    <Input
+                      value={editValue}
+                      className="h-8"
+                      onChange={(event) => setEditValue(event.target.value)}
+                      onBlur={() => {
+                        setDeviceNickname(device.serial, editValue);
+                        setEditingSerial(null);
+                      }}
+                      onKeyDown={(event) => {
+                        event.stopPropagation();
+                        if (event.key === "Enter") {
+                          setDeviceNickname(device.serial, editValue);
+                          setEditingSerial(null);
+                        }
+                        if (event.key === "Escape") setEditingSerial(null);
+                      }}
+                      onClick={(event) => event.stopPropagation()}
+                      autoFocus
+                    />
+                  ) : (
+                    <div
+                      className="truncate text-sm font-semibold"
+                      onDoubleClick={(event) => {
+                        event.stopPropagation();
+                        setEditingSerial(device.serial);
+                        setEditValue(getDeviceDisplayName(device));
+                      }}
+                      title="Double-click to rename"
+                    >
+                      {getDeviceDisplayName(device)}
+                    </div>
+                  )}
+                  <div className="truncate text-xs text-muted-foreground">
+                    {truncateSerial(device.serial)}
                   </div>
-                )}
-                <div className="device-card-serial">
-                  {truncateSerial(d.serial)}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant={isWifiDevice(device.serial) || device.wifi_available ? "secondary" : "ghost"}
+                    size="icon-sm"
+                    title={isWifiDevice(device.serial) ? "Disable WiFi" : "Enable WiFi"}
+                    onClick={(event) => handleToggleWifi(event, device)}
+                    disabled={togglingSerial === device.serial}
+                  >
+                    {togglingSerial === device.serial ? <Spinner className="size-4" /> : <WifiIcon className="size-4" />}
+                  </Button>
+                  {connectingSerial === device.serial ? <Spinner className="size-4 text-muted-foreground" /> : <ChevronRightIcon className="size-4 text-muted-foreground group-hover:text-foreground" />}
                 </div>
               </div>
-              <div className="device-card-actions">
-                <button
-                  className={`device-wifi-toggle ${isWifiDevice(d.serial) || d.wifi_available ? "active" : ""}`}
-                  title={isWifiDevice(d.serial) ? "Disable WiFi" : "Enable WiFi"}
-                  onClick={(e) => handleToggleWifi(e, d)}
-                  disabled={togglingSerial === d.serial}
-                >
-                  {togglingSerial === d.serial ? <div className="spinner-sm" /> : <WifiIcon />}
-                </button>
-                {connectingSerial === d.serial ? <div className="spinner-sm" /> : <ChevronRightIcon className="device-card-chevron" />}
-              </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
 
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="context-menu"
+          className="fixed z-[120] min-w-40 rounded-2xl border border-border bg-popover p-1 shadow-xl"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
-          <button className="context-menu-item" onClick={() => {
+          <Button className="w-full justify-start rounded-xl" variant="ghost" size="sm" onClick={() => {
             onConnectDevice(contextMenu.device);
             setContextMenu(null);
           }}>
             Connect
-          </button>
-          <button className="context-menu-item" onClick={() => {
+          </Button>
+          <Button className="w-full justify-start rounded-xl" variant="ghost" size="sm" onClick={() => {
             setEditingSerial(contextMenu.device.serial);
             setEditValue(getDeviceDisplayName(contextMenu.device));
             setContextMenu(null);
           }}>
             Rename
-          </button>
+          </Button>
           {getDeviceNickname(contextMenu.device.serial) && (
-            <button className="context-menu-item" onClick={() => {
+            <Button className="w-full justify-start rounded-xl" variant="ghost" size="sm" onClick={() => {
               setDeviceNickname(contextMenu.device.serial, "");
               setContextMenu(null);
             }}>
               Reset Name
-            </button>
+            </Button>
           )}
-          <button className="context-menu-item" onClick={() => {
-            handleToggleWifi({ stopPropagation: () => {} } as React.MouseEvent, contextMenu.device);
+          <Button className="w-full justify-start rounded-xl" variant="ghost" size="sm" onClick={() => {
+            toggleWifiForDevice(contextMenu.device);
             setContextMenu(null);
           }}>
             {isWifiDevice(contextMenu.device.serial) ? "Disable WiFi" : "Enable WiFi"}
-          </button>
-          <div className="context-menu-separator" />
-          <button className="context-menu-item" onClick={() => {
+          </Button>
+          <div className="my-1 border-t border-border" />
+          <Button className="w-full justify-start rounded-xl" variant="ghost" size="sm" onClick={() => {
             navigator.clipboard.writeText(contextMenu.device.serial);
             showToast("Serial copied", "info");
             setContextMenu(null);
           }}>
             Copy Serial
-          </button>
+          </Button>
         </div>
       )}
 
-      <Dialog.Root open={showWifiDialog} onOpenChange={setShowWifiDialog}>
-        <Dialog.Portal>
-          <Dialog.Backdrop className="dialog-backdrop" />
-          <Dialog.Popup className="wifi-dialog">
-            <Dialog.Title className="wifi-dialog-title">Connect by IP</Dialog.Title>
-            <div className="wifi-dialog-section">
-              <p className="wifi-dialog-desc">
-                On your Android device, go to <strong>Settings &gt; About phone &gt; Status</strong> to find your IP address. Both devices must be on the same network.
-              </p>
-              <div className="wifi-dialog-form">
-                <input
-                  className="wifi-input"
-                  type="text"
-                  placeholder="192.168.1.100"
-                  value={wifiAddress}
-                  onChange={(e) => setWifiAddress(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleWifiConnect()}
-                  autoFocus
-                />
-                <button
-                  className="wifi-connect-btn"
-                  onClick={handleWifiConnect}
-                  disabled={wifiConnecting || !wifiAddress.trim()}
-                >
-                  {wifiConnecting ? <div className="spinner-sm" /> : "Connect"}
-                </button>
-              </div>
-            </div>
-          </Dialog.Popup>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <Dialog open={showWifiDialog} onOpenChange={setShowWifiDialog}>
+        <DialogContent showCloseButton={false} className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Connect by IP</DialogTitle>
+            <DialogDescription>
+              On your Android device, open Settings &gt; About phone &gt; Status and find the IP address.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              type="text"
+              placeholder="192.168.1.100"
+              value={wifiAddress}
+              onChange={(event) => setWifiAddress(event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && handleWifiConnect()}
+              autoFocus
+            />
+            <Badge variant="outline">Both devices must be on the same network</Badge>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowWifiDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleWifiConnect} disabled={wifiConnecting || !wifiAddress.trim()}>
+              {wifiConnecting ? <Spinner /> : null}
+              Connect
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

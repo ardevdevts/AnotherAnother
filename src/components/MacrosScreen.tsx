@@ -1,26 +1,37 @@
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
+  ArrowDownTrayIcon,
   ArrowLeftIcon,
+  ArrowUpTrayIcon,
+  CheckIcon,
+  FolderIcon,
+  PencilIcon,
+  PlayCircleIcon,
   PlayIcon,
   TrashIcon,
-  PencilIcon,
-  ArrowDownTrayIcon,
-  ArrowUpTrayIcon,
-  FolderIcon,
-  CheckIcon,
   XMarkIcon,
-  PlayCircleIcon,
 } from "@heroicons/react/24/outline";
-import { Dialog } from "@base-ui-components/react/dialog";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Spinner } from "./ui/spinner";
+import { cn } from "../lib/utils";
 import type { MacroInfo } from "../hooks/useMacro";
 import macroIcon from "../assets/macro.png";
 
 function MacroItemIcon() {
   return (
-    <svg viewBox="0 0 24 25" fill="none" className="macro-item-icon">
-      <path d="M11.41 2.068c-.57 0-1.08 0-1.55.17-.1.04-.19.08-.29.12-.46.22-.81.58-1.21.98L3.58 8.148c-.47.47-.88.88-1.11 1.43-.22.54-.22 1.13-.22 1.8v3.47c0 1.78 0 3.22.15 4.35.16 1.17.49 2.16 1.27 2.95.78.78 1.76 1.12 2.93 1.28 1.12.15 2.55.15 4.33.15s3.31 0 4.43-.15c-.49-1.1-1.51-2.09-2.61-2.52-1.66-.65-1.66-3.01 0-3.66 1.16-.46 2.22-1.52 2.67-2.67.66-1.66 3.01-1.66 3.66 0 .16.41.39.81.67 1.17V14.858c0-1.53 0-2.77-.11-3.75-.12-1.02-.37-1.89-.96-2.63-.22-.27-.46-.52-.73-.74-.73-.6-1.6-.85-2.61-.97-1.18-.11-2.4-.11-3.92-.11z" fill="currentColor" opacity="0.4"/>
-      <path fillRule="evenodd" clipRule="evenodd" d="M9.569 2.358c.09-.05.19-.09.29-.12.21-.07.42-.12.65-.14v1.99c0 1.36 0 2.01-.12 2.88-.12.9-.38 1.66-.98 2.26s-1.36.86-2.26.98c-.87.12-1.52.12-2.88.12H2.289c.03-.26.09-.51.18-.75.22-.54.64-.96 1.11-1.43l4.78-4.81c.4-.4.76-.77 1.21-.98zM17.919 23.118c-.24.61-1.09.61-1.33 0l-.04-.1a5.73 5.73 0 00-3.23-3.23l-.11-.04c-.6-.24-.6-1.1 0-1.33l.11-.04a5.73 5.73 0 003.23-3.23l.04-.1c.24-.61 1.09-.61 1.33 0l.04.1a5.73 5.73 0 003.23 3.23l.11.04c.6.24.6 1.1 0 1.33l-.11.04a5.73 5.73 0 00-3.23 3.23l-.04.1z" fill="currentColor"/>
+    <svg viewBox="0 0 24 25" fill="none" className="size-4">
+      <path d="M11.41 2.068c-.57 0-1.08 0-1.55.17-.1.04-.19.08-.29.12-.46.22-.81.58-1.21.98L3.58 8.148c-.47.47-.88.88-1.11 1.43-.22.54-.22 1.13-.22 1.8v3.47c0 1.78 0 3.22.15 4.35.16 1.17.49 2.16 1.27 2.95.78.78 1.76 1.12 2.93 1.28 1.12.15 2.55.15 4.33.15s3.31 0 4.43-.15c-.49-1.1-1.51-2.09-2.61-2.52-1.66-.65-1.66-3.01 0-3.66 1.16-.46 2.22-1.52 2.67-2.67.66-1.66 3.01-1.66 3.66 0 .16.41.39.81.67 1.17V14.858c0-1.53 0-2.77-.11-3.75-.12-1.02-.37-1.89-.96-2.63-.22-.27-.46-.52-.73-.74-.73-.6-1.6-.85-2.61-.97-1.18-.11-2.4-.11-3.92-.11z" fill="currentColor" opacity="0.4" />
+      <path fillRule="evenodd" clipRule="evenodd" d="M9.569 2.358c.09-.05.19-.09.29-.12.21-.07.42-.12.65-.14v1.99c0 1.36 0 2.01-.12 2.88-.12.9-.38 1.66-.98 2.26s-1.36.86-2.26.98c-.87.12-1.52.12-2.88.12H2.289c.03-.26.09-.51.18-.75.22-.54.64-.96 1.11-1.43l4.78-4.81c.4-.4.76-.77 1.21-.98zM17.919 23.118c-.24.61-1.09.61-1.33 0l-.04-.1a5.73 5.73 0 00-3.23-3.23l-.11-.04c-.6-.24-.6-1.1 0-1.33l.11-.04a5.73 5.73 0 003.23-3.23l.04-.1c.24-.61 1.09-.61 1.33 0l.04.1a5.73 5.73 0 003.23 3.23l.11.04c.6.24.6 1.1 0 1.33l-.11.04a5.73 5.73 0 00-3.23 3.23l-.04.1z" fill="currentColor" />
     </svg>
   );
 }
@@ -83,184 +94,187 @@ export function MacrosScreen({
         onSetDir(selected as string);
         showToast("Macros folder changed", "info");
       }
-    } catch {}
+    } catch {
+      // noop
+    }
   };
 
-  const shortDir =
-    macrosDir.length > 40
-      ? "..." + macrosDir.slice(macrosDir.length - 37)
-      : macrosDir;
+  const shortDir = macrosDir.length > 40 ? `...${macrosDir.slice(macrosDir.length - 37)}` : macrosDir;
 
   return (
-    <div className="welcome">
-      <div className="window-drag" data-tauri-drag-region>
-        <div className="toolbar-actions toolbar-actions-split">
-          <button className="toolbar-btn" onClick={onBack}>
-            <ArrowLeftIcon />
-          </button>
-          <div className="toolbar-right">
-            <button className="toolbar-btn" onClick={onImport}>
-              <ArrowUpTrayIcon />
-            </button>
-            <button className="toolbar-btn" onClick={handlePickFolder}>
-              <FolderIcon />
-            </button>
-          </div>
+    <div className="relative flex h-screen w-screen flex-col items-center justify-center bg-gradient-to-b from-background to-muted/30 px-5 pt-10">
+      <div
+        className="absolute top-0 right-0 left-0 flex h-10 items-center justify-between border-b border-border bg-card/80 px-2 backdrop-blur-sm [-webkit-app-region:drag]"
+        data-tauri-drag-region
+      >
+        <Button variant="ghost" size="icon-sm" className="[-webkit-app-region:no-drag]" onClick={onBack}>
+          <ArrowLeftIcon className="size-4" />
+        </Button>
+        <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
+          <Button variant="ghost" size="icon-sm" onClick={onImport}>
+            <ArrowUpTrayIcon className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={handlePickFolder}>
+            <FolderIcon className="size-4" />
+          </Button>
         </div>
       </div>
 
-      <div className="welcome-header">
-        <img src={macroIcon} alt="Macros" className="welcome-logo" />
-        <h1 className="welcome-title">Macros</h1>
+      <div className="mb-6 mt-6 flex flex-col items-center gap-3">
+        <img src={macroIcon} alt="Macros" className="size-16 rounded-2xl ring-1 ring-border" />
+        <h1 className="text-3xl font-semibold tracking-tight">Macros</h1>
+        <p className="text-sm text-muted-foreground">Record and replay device interactions</p>
       </div>
-      <p className="welcome-subtitle">Record and replay device interactions</p>
 
-      <div className="device-list">
+      <div className="w-full max-w-md space-y-2">
         {macros.length > 0 && (
-          <div className="device-list-header">
-            <span className="device-list-title">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {macros.length} macro{macros.length > 1 ? "s" : ""}
             </span>
-            <div className="macros-header-actions">
-              <button className="device-list-refresh" onClick={onExportAll}>
-                <ArrowDownTrayIcon /> Export
-              </button>
-            </div>
+            <Button variant="ghost" size="sm" onClick={onExportAll}>
+              <ArrowDownTrayIcon className="size-4" />
+              Export
+            </Button>
           </div>
         )}
 
         {macros.length === 0 ? (
-          <div className="device-empty">
-            <PlayCircleIcon />
-            <p className="device-empty-title">No macros yet</p>
-            <p>
-              Record one with Cmd+Shift+M while on the device screen.
+          <div className="rounded-3xl border border-dashed border-border bg-card/80 px-6 py-8 text-center">
+            <PlayCircleIcon className="mx-auto mb-3 size-8 text-muted-foreground" />
+            <p className="text-sm font-semibold">No macros yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Record one with Cmd/Ctrl+Shift+M while on the device screen.
             </p>
-            <button className="macros-empty-import" onClick={onImport}>
+            <Button variant="outline" size="sm" className="mt-4" onClick={onImport}>
               Import from file
-            </button>
+            </Button>
           </div>
         ) : (
-          macros.map((m) => (
-            <div
-              key={m.name}
-              className={`device-card macro-card ${playingMacro === m.name ? "playing" : ""}`}
-            >
-              <div className="device-card-icon">
-                <MacroItemIcon />
-              </div>
-
-              <div className="device-card-info">
-                {editingName === m.name ? (
-                  <div className="macro-edit-row">
-                    <input
-                      ref={editInputRef}
-                      className="macro-edit-input"
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleConfirmEdit();
-                        if (e.key === "Escape") setEditingName(null);
-                      }}
-                      autoFocus
-                    />
-                    <button className="macro-edit-confirm" onClick={handleConfirmEdit}>
-                      <CheckIcon />
-                    </button>
-                    <button className="macro-edit-cancel" onClick={() => setEditingName(null)}>
-                      <XMarkIcon />
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="device-card-name">{m.name}</div>
-                    <div className="device-card-serial">
-                      {m.event_count} event{m.event_count !== 1 ? "s" : ""}
-                    </div>
-                  </>
+          <div className="space-y-2">
+            {macros.map((macro) => (
+              <div
+                key={macro.name}
+                className={cn(
+                  "flex items-center gap-3 rounded-3xl border border-border bg-card/90 px-3 py-2",
+                  playingMacro === macro.name && "border-primary/50 bg-primary/5"
                 )}
-              </div>
+              >
+                <div className="flex size-10 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                  <MacroItemIcon />
+                </div>
 
-              {editingName !== m.name && (
-                <div className="device-card-actions">
-                  <button
-                    className="macro-action-btn play"
-                    onClick={() => setPendingPlay(m.name)}
-                    disabled={!!playingMacro}
-                  >
-                    {playingMacro === m.name ? <div className="spinner-sm" /> : <PlayIcon />}
-                  </button>
-                  <button
-                    className="macro-action-btn"
-                    onClick={() => handleStartEdit(m.name)}
-                  >
-                    <PencilIcon />
-                  </button>
-                  <button
-                    className="macro-action-btn"
-                    onClick={() => onExport(m.name)}
-                  >
-                    <ArrowDownTrayIcon />
-                  </button>
-                  {confirmDelete === m.name ? (
-                    <button
-                      className="macro-action-btn danger"
-                      onClick={() => {
-                        onDelete(m.name);
-                        setConfirmDelete(null);
-                      }}
-                      onBlur={() => setConfirmDelete(null)}
-                    >
-                      <CheckIcon />
-                    </button>
+                <div className="min-w-0 flex-1">
+                  {editingName === macro.name ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        ref={editInputRef}
+                        value={editValue}
+                        className="h-8"
+                        onChange={(event) => setEditValue(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") handleConfirmEdit();
+                          if (event.key === "Escape") setEditingName(null);
+                        }}
+                        autoFocus
+                      />
+                      <Button size="icon-sm" variant="ghost" onClick={handleConfirmEdit}>
+                        <CheckIcon className="size-4 text-green-500" />
+                      </Button>
+                      <Button size="icon-sm" variant="ghost" onClick={() => setEditingName(null)}>
+                        <XMarkIcon className="size-4" />
+                      </Button>
+                    </div>
                   ) : (
-                    <button
-                      className="macro-action-btn danger"
-                      onClick={() => setConfirmDelete(m.name)}
-                    >
-                      <TrashIcon />
-                    </button>
+                    <>
+                      <div className="truncate text-sm font-semibold">{macro.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {macro.event_count} event{macro.event_count !== 1 ? "s" : ""}
+                      </div>
+                    </>
                   )}
                 </div>
-              )}
-            </div>
-          ))
+
+                {editingName !== macro.name && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-primary"
+                      onClick={() => setPendingPlay(macro.name)}
+                      disabled={!!playingMacro}
+                    >
+                      {playingMacro === macro.name ? <Spinner className="size-4" /> : <PlayIcon className="size-4" />}
+                    </Button>
+                    <Button variant="ghost" size="icon-sm" onClick={() => handleStartEdit(macro.name)}>
+                      <PencilIcon className="size-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon-sm" onClick={() => onExport(macro.name)}>
+                      <ArrowDownTrayIcon className="size-4" />
+                    </Button>
+                    {confirmDelete === macro.name ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-destructive"
+                        onClick={() => {
+                          onDelete(macro.name);
+                          setConfirmDelete(null);
+                        }}
+                        onBlur={() => setConfirmDelete(null)}
+                      >
+                        <CheckIcon className="size-4" />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-destructive"
+                        onClick={() => setConfirmDelete(macro.name)}
+                      >
+                        <TrashIcon className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         )}
 
-        <div className="macros-dir-bar" onClick={handlePickFolder} style={{ cursor: "pointer" }}>
-          <FolderIcon />
-          <span>{shortDir}</span>
-        </div>
+        <button
+          className="mt-2 flex w-full items-center gap-2 truncate rounded-2xl border border-border px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/50"
+          onClick={handlePickFolder}
+        >
+          <FolderIcon className="size-4 shrink-0" />
+          <span className="truncate">{shortDir}</span>
+        </button>
       </div>
 
-      <Dialog.Root open={!!pendingPlay} onOpenChange={(open) => { if (!open) setPendingPlay(null); }}>
-        <Dialog.Portal>
-          <Dialog.Backdrop className="dialog-backdrop" />
-          <Dialog.Popup className="wifi-dialog">
-            <Dialog.Title className="wifi-dialog-title">Play Macro</Dialog.Title>
-            <div className="wifi-dialog-section">
-              <p className="wifi-dialog-desc">
-                Ready to play <strong>{pendingPlay}</strong>? You'll be taken back to the device screen first.
-              </p>
-              <div className="macro-play-actions">
-                <button className="macro-play-cancel" onClick={() => setPendingPlay(null)}>
-                  Cancel
-                </button>
-                <button
-                  className="wifi-connect-btn"
-                  onClick={() => {
-                    const name = pendingPlay;
-                    setPendingPlay(null);
-                    if (name) onPlay(name);
-                  }}
-                >
-                  Play
-                </button>
-              </div>
-            </div>
-          </Dialog.Popup>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <Dialog open={!!pendingPlay} onOpenChange={(isOpen) => !isOpen && setPendingPlay(null)}>
+        <DialogContent showCloseButton={false} className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Play Macro</DialogTitle>
+            <DialogDescription>
+              Ready to play <strong>{pendingPlay}</strong>? You will be taken back to the device screen first.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingPlay(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const name = pendingPlay;
+                setPendingPlay(null);
+                if (name) onPlay(name);
+              }}
+            >
+              Play
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

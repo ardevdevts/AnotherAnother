@@ -13,13 +13,13 @@
     "windows": [
       {
         "title": "Another",
-        "width": 380,
-        "height": 750,
+        "width": 500,
+        "height": 900,
         "resizable": true,
-        "minWidth": 280,
-        "minHeight": 400,
-        "titleBarStyle": "Overlay",
+        "minWidth": 400,
+        "minHeight": 700,
         "hiddenTitle": true,
+        "decorations": false,
         "acceptFirstMouse": true
       }
     ],

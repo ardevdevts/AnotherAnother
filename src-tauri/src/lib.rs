@@ -45,6 +45,13 @@ pub fn run() {
 
             app.set_menu(menu)?;
 
+            #[cfg(target_os = "windows")]
+            {
+                for window in app.webview_windows().values() {
+                    window.hide_menu()?;
+                }
+            }
+
             Ok(())
         })
         .on_menu_event(|app, event| {

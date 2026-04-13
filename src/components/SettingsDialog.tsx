@@ -1,17 +1,31 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
-  ChevronUpDownIcon,
   CheckIcon,
   ChevronDownIcon,
   ClipboardDocumentIcon,
 } from "@heroicons/react/24/outline";
-import { Dialog } from "@base-ui-components/react/dialog";
-import { Select } from "@base-ui-components/react/select";
-import { Slider } from "@base-ui-components/react/slider";
-import { Switch } from "@base-ui-components/react/switch";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { Slider } from "./ui/slider";
+import { Switch } from "./ui/switch";
+import { cn } from "../lib/utils";
 import type { Settings } from "../types";
-import { PRESETS, RESOLUTION_OPTIONS, CODEC_OPTIONS } from "../types";
+import { CODEC_OPTIONS, PRESETS, RESOLUTION_OPTIONS } from "../types";
 
 const DEFAULT_MCP_PORT = 7070;
 
@@ -20,11 +34,15 @@ function getMcpUrl(port: number) {
 }
 
 function getMcpConfig(port: number) {
-  return JSON.stringify({
-    mcpServers: {
-      another: { type: "http", url: getMcpUrl(port) },
+  return JSON.stringify(
+    {
+      mcpServers: {
+        another: { type: "http", url: getMcpUrl(port) },
+      },
     },
-  }, null, 2);
+    null,
+    2
+  );
 }
 
 interface SettingsDialogProps {
@@ -38,6 +56,45 @@ interface SettingsDialogProps {
 
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text);
+}
+
+function SettingsSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-4 border-b border-border/60 pb-5 last:border-0 last:pb-0">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+function SettingRow({
+  label,
+  value,
+  children,
+  className,
+}: {
+  label: string;
+  value?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex items-center justify-between gap-4", className)}>
+      <div className="space-y-0.5">
+        <div className="text-sm font-medium">{label}</div>
+        {value ? <div className="font-mono text-xs text-muted-foreground">{value}</div> : null}
+      </div>
+      {children}
+    </div>
+  );
 }
 
 export function SettingsDialog({
@@ -66,7 +123,9 @@ export function SettingsDialog({
     try {
       const running = await invoke<boolean>("get_mcp_status");
       setMcpRunning(running);
-    } catch { }
+    } catch {
+      setMcpRunning(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -83,7 +142,9 @@ export function SettingsDialog({
         await invoke("stop_mcp_server");
       }
       await checkMcpStatus();
-    } catch { }
+    } catch {
+      setMcpRunning(false);
+    }
   }
 
   function handleCopyUrl() {
@@ -101,189 +162,185 @@ export function SettingsDialog({
   const mcpConfig = getMcpConfig(mcpPort);
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Backdrop className="dialog-backdrop" />
-        <Dialog.Popup className="settings-panel">
-          <div className="settings-header">
-            <Dialog.Title className="settings-title">Settings</Dialog.Title>
-          </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showCloseButton={false} className="max-h-[85vh] max-w-2xl overflow-y-auto p-0">
+        <DialogHeader className="border-b border-border px-6 py-4">
+          <DialogTitle>Settings</DialogTitle>
+          <DialogDescription>Changes reconnect automatically when required.</DialogDescription>
+        </DialogHeader>
 
-          <div className="settings-group">
-            <div className="settings-group-title">Presets</div>
-            <div className="preset-btns">
+        <div className="space-y-6 px-6 py-5">
+          <SettingsSection title="Presets">
+            <div className="grid grid-cols-3 gap-2">
               {Object.keys(PRESETS).map((name) => (
-                <button key={name} className={`preset-btn ${activePreset === name ? "active" : ""}`} onClick={() => onApplyPreset(name)}>
-                  {name.charAt(0).toUpperCase() + name.slice(1)}
-                </button>
+                <Button
+                  key={name}
+                  variant={activePreset === name ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => onApplyPreset(name)}
+                  className="capitalize"
+                >
+                  {name}
+                </Button>
               ))}
             </div>
-          </div>
+          </SettingsSection>
 
-          <div className="settings-group">
-            <div className="settings-group-title">Video</div>
+          <SettingsSection title="Video">
+            <div className={cn("space-y-4", settings.adaptive && "opacity-50 pointer-events-none")}>
+              <SettingRow label="Resolution">
+                <Select
+                  value={String(settings.max_size)}
+                  onValueChange={(value) => onUpdateSetting("max_size", Number(value))}
+                >
+                  <SelectTrigger className="min-w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RESOLUTION_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={String(option.value)}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </SettingRow>
 
-            <div style={{ opacity: settings.adaptive ? 0.5 : 1, pointerEvents: settings.adaptive ? 'none' : 'auto' }}>
-              <div className="setting-row">
-                <span className="setting-label">Resolution</span>
-                <Select.Root value={settings.max_size} onValueChange={(val) => onUpdateSetting("max_size", val as number)}>
-                  <Select.Trigger className="select-trigger">
-                    <Select.Value>{RESOLUTION_OPTIONS.find((o) => o.value === settings.max_size)?.label}</Select.Value>
-                    <ChevronUpDownIcon className="select-icon" />
-                  </Select.Trigger>
-                  <Select.Portal>
-                    <Select.Positioner className="select-positioner" sideOffset={4}>
-                      <Select.Popup className="select-popup">
-                        {RESOLUTION_OPTIONS.map((o) => (
-                          <Select.Item key={o.value} value={o.value} className="select-item">
-                            <Select.ItemIndicator className="select-item-indicator"><CheckIcon /></Select.ItemIndicator>
-                            <Select.ItemText>{o.label}</Select.ItemText>
-                          </Select.Item>
-                        ))}
-                      </Select.Popup>
-                    </Select.Positioner>
-                  </Select.Portal>
-                </Select.Root>
-              </div>
-
-              <div className="setting-row">
-                <span className="setting-label">Max FPS</span>
-                <span className="setting-value">{settings.max_fps}</span>
-              </div>
-              <Slider.Root
-                className="slider-root"
+              <SettingRow label="Max FPS" value={`${settings.max_fps}`}>
+                <div className="w-44" />
+              </SettingRow>
+              <Slider
                 value={settings.max_fps}
-                onValueChange={(val) => onUpdateSetting("max_fps", val as number)}
-                min={15} max={120} step={5}
-              >
-                <Slider.Control className="slider-control">
-                  <Slider.Track className="slider-track">
-                    <Slider.Indicator className="slider-indicator" />
-                    <Slider.Thumb className="slider-thumb" />
-                  </Slider.Track>
-                </Slider.Control>
-              </Slider.Root>
+                onValueChange={(value) => onUpdateSetting("max_fps", value as number)}
+                min={15}
+                max={120}
+                step={5}
+              />
 
-              <div className="setting-row" style={{ marginTop: 12 }}>
-                <span className="setting-label">Bitrate</span>
-                <span className="setting-value">{(settings.video_bit_rate / 1000000).toFixed(0)} Mbps</span>
-              </div>
-              <Slider.Root
-                className="slider-root"
+              <SettingRow
+                label="Bitrate"
+                value={`${(settings.video_bit_rate / 1000000).toFixed(0)} Mbps`}
+              >
+                <div className="w-44" />
+              </SettingRow>
+              <Slider
                 value={settings.video_bit_rate}
-                onValueChange={(val) => onUpdateSetting("video_bit_rate", val as number)}
-                min={1000000} max={32000000} step={1000000}
+                onValueChange={(value) => onUpdateSetting("video_bit_rate", value as number)}
+                min={1000000}
+                max={32000000}
+                step={1000000}
+              />
+            </div>
+
+            <SettingRow label="Codec" className="pt-1">
+              <Select
+                value={settings.video_codec}
+                onValueChange={(value) => {
+                  if (value) onUpdateSetting("video_codec", value);
+                }}
               >
-                <Slider.Control className="slider-control">
-                  <Slider.Track className="slider-track">
-                    <Slider.Indicator className="slider-indicator" />
-                    <Slider.Thumb className="slider-thumb" />
-                  </Slider.Track>
-                </Slider.Control>
-              </Slider.Root>
-            </div>
+                <SelectTrigger className="min-w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CODEC_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingRow>
 
-            <div className="setting-row" style={{ marginTop: 12 }}>
-              <span className="setting-label">Codec</span>
-              <Select.Root value={settings.video_codec} onValueChange={(val) => onUpdateSetting("video_codec", val as string)}>
-                <Select.Trigger className="select-trigger">
-                  <Select.Value>{CODEC_OPTIONS.find((o) => o.value === settings.video_codec)?.label}</Select.Value>
-                  <ChevronUpDownIcon className="select-icon" />
-                </Select.Trigger>
-                <Select.Portal>
-                  <Select.Positioner className="select-positioner" sideOffset={4}>
-                    <Select.Popup className="select-popup">
-                      {CODEC_OPTIONS.map((o) => (
-                        <Select.Item key={o.value} value={o.value} className="select-item">
-                          <Select.ItemIndicator className="select-item-indicator"><CheckIcon /></Select.ItemIndicator>
-                          <Select.ItemText>{o.label}</Select.ItemText>
-                        </Select.Item>
-                      ))}
-                    </Select.Popup>
-                  </Select.Positioner>
-                </Select.Portal>
-              </Select.Root>
-            </div>
-
-            <div className="setting-row" style={{ marginTop: 12 }}>
-              <span className="setting-label">Adaptive Quality</span>
-              <Switch.Root
-                className="switch-root"
+            <SettingRow label="Adaptive Quality">
+              <Switch
                 checked={settings.adaptive}
                 onCheckedChange={(checked) => onUpdateSetting("adaptive", checked)}
-              >
-                <Switch.Thumb className="switch-thumb" />
-              </Switch.Root>
-            </div>
-            <div className="setting-hint">Automatically adjusts quality based on network conditions</div>
-          </div>
+              />
+            </SettingRow>
+            <p className="text-xs text-muted-foreground">
+              Automatically adjusts quality based on network conditions.
+            </p>
+          </SettingsSection>
 
-          <div className="settings-group">
-            <div className="settings-group-title">Audio</div>
-            <div className="setting-row">
-              <span className="setting-label">Forward device audio</span>
-              <Switch.Root
-                className="switch-root"
+          <SettingsSection title="Audio">
+            <SettingRow label="Forward device audio">
+              <Switch
                 checked={settings.audio}
                 onCheckedChange={(checked) => onUpdateSetting("audio", checked)}
-              >
-                <Switch.Thumb className="switch-thumb" />
-              </Switch.Root>
-            </div>
-            <div className="setting-hint">Requires Android 11+</div>
-          </div>
+              />
+            </SettingRow>
+            <p className="text-xs text-muted-foreground">Requires Android 11+.</p>
+          </SettingsSection>
 
-          <div className="settings-group">
-            <div className="setting-row">
-              <span className="settings-group-title" style={{ marginBottom: 0 }}>MCP Server</span>
-              <Switch.Root
-                className="switch-root"
-                checked={mcpEnabled}
-                onCheckedChange={handleMcpToggle}
-              >
-                <Switch.Thumb className="switch-thumb" />
-              </Switch.Root>
-            </div>
-            {mcpRunning && (
-              <div className="mcp-status">Running on port {mcpPort}</div>
-            )}
+          <SettingsSection title="MCP Server">
+            <SettingRow label="Enable MCP server">
+              <Switch checked={mcpEnabled} onCheckedChange={handleMcpToggle} />
+            </SettingRow>
+
+            {mcpRunning ? <Badge variant="outline">Running on port {mcpPort}</Badge> : null}
+
             {mcpEnabled && (
-              <div className="mcp-content">
-                <p className="setting-hint" style={{ marginTop: 0, marginBottom: 12 }}>Let AI agents control your Android device</p>
-                <div className="mcp-url-row">
-                  <code className="mcp-url">{getMcpUrl(mcpPort)}</code>
-                  <button className="mcp-copy-btn" onClick={handleCopyUrl}>
-                    <ClipboardDocumentIcon />
+              <div className="space-y-3 rounded-3xl border border-border bg-muted/30 p-4">
+                <p className="text-sm text-muted-foreground">
+                  Let AI agents control your Android device.
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 truncate rounded-xl bg-card px-3 py-2 font-mono text-xs ring-1 ring-border">
+                    {getMcpUrl(mcpPort)}
+                  </code>
+                  <Button variant="outline" size="sm" onClick={handleCopyUrl}>
+                    <ClipboardDocumentIcon className="size-4" />
                     {copiedUrl ? "Copied" : "Copy URL"}
-                  </button>
+                  </Button>
                 </div>
-                <button className="mcp-collapsible-header mcp-sub-header" onClick={() => setMcpInstructionsOpen(!mcpInstructionsOpen)}>
-                  <span className="setting-label">Setup Instructions</span>
-                  <ChevronDownIcon className={`mcp-chevron ${mcpInstructionsOpen ? "open" : ""}`} />
-                </button>
+
+                <Button
+                  variant="ghost"
+                  className="w-full justify-between px-2"
+                  onClick={() => setMcpInstructionsOpen((value) => !value)}
+                >
+                  Setup instructions
+                  <ChevronDownIcon
+                    className={cn(
+                      "size-4 transition-transform",
+                      mcpInstructionsOpen && "rotate-180"
+                    )}
+                  />
+                </Button>
+
                 {mcpInstructionsOpen && (
-                  <div className="mcp-instructions">
-                    <div className="mcp-snippet-block">
-                      <div className="mcp-snippet-header">
-                        <span className="mcp-snippet-title">Claude Code, Claude Desktop, Cursor, etc.</span>
-                        <button className="mcp-copy-btn mcp-copy-btn-sm" onClick={() => handleCopySnippet("config", mcpConfig)}>
-                          <ClipboardDocumentIcon />
-                          {copiedSnippet === "config" ? "Copied" : "Copy"}
-                        </button>
-                      </div>
-                      <pre className="mcp-code">{mcpConfig}</pre>
+                  <div className="space-y-2 rounded-2xl border border-border bg-card p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Claude Code, Claude Desktop, Cursor, etc.
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCopySnippet("config", mcpConfig)}
+                      >
+                        <ClipboardDocumentIcon className="size-4" />
+                        {copiedSnippet === "config" ? "Copied" : "Copy"}
+                      </Button>
                     </div>
+                    <pre className="overflow-x-auto rounded-xl bg-muted p-3 font-mono text-xs">
+                      {mcpConfig}
+                    </pre>
                   </div>
                 )}
               </div>
             )}
-          </div>
+          </SettingsSection>
+        </div>
 
-          <div className="settings-note">
-            <strong>Live settings</strong> -- changes reconnect automatically.
-          </div>
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+        <div className="border-t border-border px-6 py-4">
+          <Button variant="outline" className="w-full" onClick={() => onOpenChange(false)}>
+            <CheckIcon className="size-4" />
+            Done
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

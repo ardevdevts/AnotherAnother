@@ -4,11 +4,8 @@
 
 <h1 align="center">Another</h1>
 
-<p align="center">
-  <a href="https://github.com/Zfinix/another/releases/latest"><img src="https://img.shields.io/github/v/release/Zfinix/another?style=flat-square" alt="Latest Release" /></a>
-  <a href="https://github.com/Zfinix/another/releases"><img src="https://img.shields.io/github/downloads/Zfinix/another/total?style=flat-square" alt="Downloads" /></a>
-  <a href="https://github.com/Zfinix/another/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Zfinix/another?style=flat-square" alt="License" /></a>
-</p>
+
+Fork from "https://github.com/Zfinix/another". :3 Built to make the UI shortcut first and eliminate struggles in the UI by switching to tailwindcss and shadcn. Hotkeys based. MCP/AI eliminated, as well as mac builds cuz i cant personally sign them and whatever, dont have a Mac. Also to fix windows issues in terminal spamming in the communication to the CLI. 
 
 A desktop app for mirroring and controlling Android devices. Built with Tauri, React, and Rust.
 
@@ -18,16 +15,9 @@ Uses a bundled [scrcpy-server](https://github.com/Genymobile/scrcpy) to stream v
 
 ## Download
 
-Grab the latest release for your platform:
+Check releases
 
-**[Download Latest Release](https://github.com/Zfinix/another/releases/latest)**
 
-| Platform | Download |
-|----------|----------|
-| macOS (Apple Silicon) | [.dmg](https://github.com/Zfinix/another/releases/latest) |
-| macOS (Intel) | [.dmg](https://github.com/Zfinix/another/releases/latest) |
-| Linux | [.deb / .AppImage](https://github.com/Zfinix/another/releases/latest) |
-| Windows | [.msi / .exe](https://github.com/Zfinix/another/releases/latest) |
 
 ## Features
 
@@ -44,75 +34,6 @@ Grab the latest release for your platform:
 - Screenshot capture
 - Automatic device detection via ADB
 - Light/dark/auto theme
-- MCP Server for AI agent control
-
-## MCP Server
-
-AI agents can control your Android device through the MCP (Model Context Protocol) protocol.
-
-The MCP server starts automatically with the app on port 7070. You can toggle it on/off in Settings.
-
-### Configuration
-
-Add to your MCP settings (Claude Code, Claude Desktop, Cursor, etc.):
-
-```json
-{
-  "mcpServers": {
-    "another": {
-      "type": "http",
-      "url": "http://localhost:7070/mcp"
-    }
-  }
-}
-```
-
-**Stdio mode** (for tools that support it):
-
-```json
-{
-  "mcpServers": {
-    "another": {
-      "command": "another-mcp",
-      "args": ["--scrcpy-server", "/path/to/scrcpy-server-v2.7"]
-    }
-  }
-}
-```
-
-### AI Agent Skill
-
-Install the [Another skill](https://clawhub.ai/zfinix/another) to teach your AI agent how to use the MCP tools:
-
-```sh
-npx skills add Zfinix/another@another-android
-```
-
-### Available Tools
-
-| Tool | Description |
-|------|-------------|
-| another_list_devices | List connected Android devices |
-| another_connect_device | Connect to a device for control |
-| another_disconnect_device | Disconnect from current device |
-| another_take_screenshot | Capture device screen as PNG |
-| another_press_button | Press home/back/recents/power/volume |
-| another_send_text | Type text on device |
-| another_send_touch | Touch at screen coordinates |
-| another_send_scroll | Scroll at screen coordinates |
-| another_swipe | Swipe gesture between two points |
-| another_shell | Run adb shell command |
-| another_open_url | Open URL in Chrome by default (`use_system_handler` for app chooser / Google app) |
-| another_launch_app | Launch app by package name |
-| another_wifi_enable | Enable WiFi debugging |
-| another_wifi_connect | Connect to device by IP |
-| another_wifi_disconnect | Disconnect WiFi device |
-| another_get_device_ip | Get device WiFi IP address |
-| another_macro_record | Start recording a macro |
-| another_macro_stop | Stop recording a macro |
-| another_macro_play | Play a recorded macro |
-| another_macro_list | List all macros |
-| another_macro_delete | Delete a macro |
 
 ## Keyboard Shortcuts
 
@@ -132,7 +53,6 @@ npx skills add Zfinix/another@another-android
 | `⌘T` | Toggle Theme |
 | `⌘,` | Settings |
 
-> On Windows/Linux, use `Ctrl` instead of `⌘`.
 
 ## Platform Support
 
