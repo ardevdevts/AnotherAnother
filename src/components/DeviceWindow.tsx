@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
+import { Spinner } from "./ui/spinner";
 import { MirrorScreen } from "./MirrorScreen";
 import { useConnection } from "../hooks/useConnection";
 import { useDeviceSessions } from "../hooks/useDeviceSessions";
@@ -16,7 +17,15 @@ interface DeviceWindowProps {
 export function DeviceWindow({ serial, showToast }: DeviceWindowProps) {
   const [settings] = useState<Settings>(PRESETS.balanced);
   const [device, setDevice] = useState<Device>({ serial, model: serial, state: "device" });
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [isConnectingPhase, setIsConnectingPhase] = useState(true);
+  const [connectTimedOut, setConnectTimedOut] = useState(false);
   const { sessionBySerial } = useDeviceSessions(showToast);
+
+  const startConnectAttempt = useCallback(() => {
+    setIsConnectingPhase(true);
+    setConnectTimedOut(false);
+  }, []);
 
   const takeScreenshot = useCallback(async () => {
     try {
@@ -71,14 +80,45 @@ export function DeviceWindow({ serial, showToast }: DeviceWindowProps) {
     };
 
     loadDevice();
+    startConnectAttempt();
     connectToDevice({ serial, model: serial, state: "device" }, settings);
     return () => {
       disconnect();
     };
-  }, [connectToDevice, disconnect, serial, settings]);
+  }, [connectToDevice, disconnect, serial, settings, startConnectAttempt]);
 
   const session = sessionBySerial[serial];
   const status = session?.status ?? (connectedDevice ? "running" : connectingSerial === serial ? "starting" : "stopped");
+  const showLoadingScreen = isConnectingPhase && !connectedDevice && !connectTimedOut;
+  const shouldShowOverlayForState = !showLoadingScreen && (status === "error" || status === "stopping" || status === "stopped" || !connectedDevice);
+  const overlayVisible = showOverlay || shouldShowOverlayForState;
+
+  useEffect(() => {
+    if (connectedDevice) {
+      setIsConnectingPhase(false);
+      setConnectTimedOut(false);
+    }
+  }, [connectedDevice]);
+
+  useEffect(() => {
+    if (!isConnectingPhase) return;
+    const timer = setTimeout(() => setConnectTimedOut(true), 30000);
+    return () => clearTimeout(timer);
+  }, [isConnectingPhase]);
+
+  useEffect(() => {
+    const isMac = navigator.userAgent.includes("Mac");
+    const onKeyDown = (event: KeyboardEvent) => {
+      const hasModifier = isMac ? event.metaKey : event.ctrlKey;
+      if (hasModifier && event.shiftKey && event.key.toLowerCase() === "o") {
+        event.preventDefault();
+        setShowOverlay((value) => !value);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const sessionBadge = useMemo(() => {
     if (status === "running") return <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600">Running</Badge>;
@@ -89,28 +129,37 @@ export function DeviceWindow({ serial, showToast }: DeviceWindowProps) {
   }, [status]);
 
   const handleReconnect = async () => {
+    startConnectAttempt();
     await connectToDevice(device, settings, false);
+  };
+
+  const handleKillSession = async () => {
+    setIsConnectingPhase(false);
+    setConnectTimedOut(false);
+    await disconnect();
   };
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-background">
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 px-4 py-3">
-        <div className="pointer-events-auto flex min-w-0 items-center gap-3 rounded-2xl border border-border/70 bg-card/90 px-3 py-2 shadow-lg backdrop-blur">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold">{device.model}</div>
-            <div className="truncate text-xs text-muted-foreground">{serial}</div>
+      {overlayVisible && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 px-4 py-3">
+          <div className="pointer-events-auto flex min-w-0 items-center gap-3 rounded-2xl border border-border/70 bg-card/90 px-3 py-2 shadow-lg backdrop-blur">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">{device.model}</div>
+              <div className="truncate text-xs text-muted-foreground">{serial}</div>
+            </div>
+            {sessionBadge}
           </div>
-          {sessionBadge}
+          <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-border/70 bg-card/90 p-2 shadow-lg backdrop-blur">
+            <Button variant="outline" size="sm" onClick={handleReconnect} disabled={status === "starting" || status === "running"}>
+              Reconnect
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handleKillSession} disabled={status !== "running" && status !== "starting"}>
+              Kill Session
+            </Button>
+          </div>
         </div>
-        <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-border/70 bg-card/90 p-2 shadow-lg backdrop-blur">
-          <Button variant="outline" size="sm" onClick={handleReconnect} disabled={status === "starting" || status === "running"}>
-            Reconnect
-          </Button>
-          <Button variant="destructive" size="sm" onClick={disconnect} disabled={status !== "running" && status !== "starting"}>
-            Kill Session
-          </Button>
-        </div>
-      </div>
+      )}
 
       {connectedDevice ? (
         <MirrorScreen
@@ -127,10 +176,20 @@ export function DeviceWindow({ serial, showToast }: DeviceWindowProps) {
           onWheel={handleWheel}
           onKeyDown={handleKeyDown}
         />  
+      ) : showLoadingScreen ? (
+        <div className="flex h-full w-full items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-center text-muted-foreground">
+            <Spinner className="size-7" />
+            <div className="text-sm">Connecting to device...</div>
+            <div className="text-xs text-muted-foreground">This may take up to 30 seconds.</div>
+          </div>
+        </div>
       ) : (
         <div className="flex h-full w-full items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-center text-muted-foreground">
-            <div className="rounded-full border border-border bg-card px-4 py-2 text-sm">Device session stopped</div>
+            <div className="rounded-full border border-border bg-card px-4 py-2 text-sm">
+              {connectTimedOut ? "Connection timed out" : "Device session stopped"}
+            </div>
             <Button onClick={handleReconnect} disabled={status === "starting"}>Open again</Button>
             <Button variant="ghost" onClick={() => getCurrentWindow().close()}>Close window</Button>
           </div>

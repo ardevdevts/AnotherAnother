@@ -8,7 +8,7 @@ use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tokio::sync::Mutex;
 
 fn sanitize_window_label(value: &str) -> String {
@@ -213,7 +213,13 @@ pub async fn connect_device(
             let mut session_guard = session.lock().await;
             session_guard.status = DeviceSessionStatus::Stopped;
             emit_session_update(&app_for_task, &session_guard).await;
-            if let Some(mut process) = session_guard.process.lock().await.take() {
+            let process = session_guard.process.clone();
+            drop(session_guard);
+            let mut taken_process = {
+                let mut guard = process.lock().await;
+                guard.take()
+            };
+            if let Some(mut process) = taken_process.take() {
                 let _ = process.kill().await;
             }
         }
@@ -237,17 +243,26 @@ pub async fn disconnect_device(
 
     if let Some(session) = session {
         let mut session_guard = session.lock().await;
+        let window_label = session_guard.window_label.clone();
         session_guard.status = DeviceSessionStatus::Stopping;
         emit_session_update(&app, &session_guard).await;
         session_guard.shutdown.notify_one();
-        scrcpy::stop_server(&session_guard.device_serial, 27183)
-            .await
-            .map_err(|e| e.to_string())?;
-        if let Some(mut process) = session_guard.process.lock().await.take() {
+        scrcpy::stop_server(&session_guard.device_serial, 27183).await;
+        let process = session_guard.process.clone();
+        drop(session_guard);
+        let mut taken_process = {
+            let mut guard = process.lock().await;
+            guard.take()
+        };
+        if let Some(mut process) = taken_process.take() {
             let _ = process.kill().await;
         }
+        let mut session_guard = session.lock().await;
         session_guard.status = DeviceSessionStatus::Stopped;
         emit_session_update(&app, &session_guard).await;
+        if let Some(window) = app.get_webview_window(&window_label) {
+            let _ = window.close();
+        }
     }
     Ok(())
 }
