@@ -33,6 +33,7 @@ interface CommandDef {
 }
 
 function DeviceApp({ serial }: { serial: string }) {
+  useTheme();
   const { toasts, showToast } = useToasts();
 
   return (
