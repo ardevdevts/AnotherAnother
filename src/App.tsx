@@ -6,12 +6,14 @@ import { PRESETS } from "./types";
 import { useTheme } from "./hooks/useTheme";
 import { useToasts } from "./hooks/useToasts";
 import { useDevices } from "./hooks/useDevices";
+import { useDeviceSessions } from "./hooks/useDeviceSessions";
 import { useConnection } from "./hooks/useConnection";
 import { useAdaptiveBitrate } from "./hooks/useAdaptiveBitrate";
 import { useMacro } from "./hooks/useMacro";
 import { useUpdater } from "./hooks/useUpdater";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { MirrorScreen } from "./components/MirrorScreen";
+import { DeviceWindow } from "./components/DeviceWindow";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { CommandBar } from "./components/CommandBar";
 import { MacrosScreen } from "./components/MacrosScreen";
@@ -30,7 +32,18 @@ interface CommandDef {
   action: () => void;
 }
 
-function App() {
+function DeviceApp({ serial }: { serial: string }) {
+  const { toasts, showToast } = useToasts();
+
+  return (
+    <>
+      <DeviceWindow serial={serial} showToast={showToast} />
+      <ToastContainer toasts={toasts} />
+    </>
+  );
+}
+
+function ManagerApp() {
   const [showSettings, setShowSettings] = useState(false);
   const [showCommandBar, setShowCommandBar] = useState(false);
   const [showMacros, setShowMacros] = useState(false);
@@ -40,10 +53,15 @@ function App() {
   const { themePref, setThemePref, cycleTheme } = useTheme();
   const { toasts, showToast } = useToasts();
   const { devices, refreshDevices } = useDevices(showToast);
+  const { sessionBySerial } = useDeviceSessions(showToast);
   const macro = useMacro({ showToast, onRecordingStopped: () => setShowMacros(true) });
   const updater = useUpdater(showToast);
 
   const takeScreenshot = useCallback(async () => {
+    if (!connectedDeviceRef.current) {
+      showToast("Open a device window first", "info");
+      return;
+    }
     try {
       const base64 = await invoke<string>("take_screenshot");
       const link = document.createElement("a");
@@ -84,7 +102,6 @@ function App() {
     recording,
     setMuted,
     toggleRecording,
-    connectToDevice,
     disconnect,
     scheduleReconnect,
     pressButton,
@@ -92,6 +109,7 @@ function App() {
     handleWheel,
     handleKeyDown,
   } = useConnection({
+    deviceSerial: "",
     settings,
     showToast,
     takeScreenshot,
@@ -211,11 +229,25 @@ function App() {
         <WelcomeScreen
           devices={devices}
           connectingSerial={connectingSerial}
+          deviceSessions={sessionBySerial}
           themePref={themePref}
           onCycleTheme={cycleTheme}
           onOpenSettings={() => setShowSettings(true)}
           onRefreshDevices={refreshDevices}
-          onConnectDevice={(d) => connectToDevice(d, settings)}
+          onOpenDevice={async (d) => {
+            try {
+              await invoke("open_device_window", { serial: d.serial });
+            } catch (error) {
+              showToast(`Failed to open device window: ${error}`);
+            }
+          }}
+          onKillSession={async (d) => {
+            try {
+              await invoke("disconnect_device", { serial: d.serial });
+            } catch (error) {
+              showToast(`Failed to stop device session: ${error}`);
+            }
+          }}
           showToast={showToast}
         />
       ) : connectedDevice ? (
@@ -251,6 +283,14 @@ function App() {
       <ToastContainer toasts={toasts} />
     </>
   );
+}
+
+function App() {
+  const deviceSerial = new URLSearchParams(window.location.search).get("device");
+  if (deviceSerial) {
+    return <DeviceApp serial={deviceSerial} />;
+  }
+  return <ManagerApp />;
 }
 
 export default App;

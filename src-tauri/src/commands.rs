@@ -1,5 +1,5 @@
 use crate::audio::{self, AudioHandle};
-use crate::state::{AppState, ScrcpySession};
+use crate::state::{AppState, DeviceSessionInfo, DeviceSessionStatus, ScrcpySession};
 use crate::video::{self, FrameEvent};
 use another_core::scrcpy::StreamSettings;
 use another_core::{adb, control, macro_engine, scrcpy};
@@ -8,8 +8,93 @@ use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tokio::sync::Mutex;
+
+fn sanitize_window_label(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric()
+                || character == '-'
+                || character == '_'
+                || character == ':'
+                || character == '/'
+            {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+fn device_window_label(serial: &str) -> String {
+    format!("device-{}", sanitize_window_label(serial))
+}
+
+async fn session_for(
+    state: &State<'_, AppState>,
+    serial: &str,
+) -> Result<Arc<Mutex<ScrcpySession>>, String> {
+    let sessions = state.sessions.lock().await;
+    sessions
+        .get(serial)
+        .cloned()
+        .ok_or_else(|| "Not connected".to_string())
+}
+
+async fn emit_session_update(app: &AppHandle, session: &ScrcpySession) {
+    let _ = app.emit(
+        "device-session-updated",
+        DeviceSessionInfo {
+            serial: session.device_serial.clone(),
+            status: session.status.clone(),
+            window_label: session.window_label.clone(),
+        },
+    );
+}
+
+#[tauri::command]
+pub async fn open_device_window(app: AppHandle, serial: String) -> Result<(), String> {
+    let label = device_window_label(&serial);
+    if let Some(window) = app.get_webview_window(&label) {
+        window.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    WebviewWindowBuilder::new(
+        &app,
+        &label,
+        WebviewUrl::App(format!("index.html?device={}", serial).into()),
+    )
+    .title(&format!("Another - {}", serial))
+    .inner_size(960.0, 900.0)
+    .min_inner_size(360.0, 420.0)
+    .resizable(true)
+    .build()
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_device_sessions(state: State<'_, AppState>) -> Result<Vec<DeviceSessionInfo>, String> {
+    let sessions = state.sessions.lock().await;
+    let session_refs: Vec<_> = sessions.values().cloned().collect();
+    drop(sessions);
+
+    let mut list = Vec::with_capacity(session_refs.len());
+    for session in session_refs {
+        let session = session.lock().await;
+        list.push(DeviceSessionInfo {
+            serial: session.device_serial.clone(),
+            status: session.status.clone(),
+            window_label: session.window_label.clone(),
+        });
+    }
+    Ok(list)
+}
 
 #[tauri::command]
 pub async fn list_devices() -> Result<Vec<adb::Device>, String> {
@@ -25,10 +110,9 @@ pub async fn connect_device(
     state: State<'_, AppState>,
 ) -> Result<(u32, u32), String> {
     {
-        let mut session = state.session.lock().await;
-        if let Some(s) = session.take() {
-            s.shutdown.notify_one();
-            scrcpy::stop_server(&s.device_serial, 27183).await;
+        let sessions = state.sessions.lock().await;
+        if sessions.contains_key(&serial) {
+            return Err("That device is already open in another window".to_string());
         }
     }
 
@@ -41,13 +125,14 @@ pub async fn connect_device(
 
     let port: u16 = 27183;
 
-    let (streams, mut server_process) =
+    let (streams, server_process) =
         scrcpy::start_server(&serial, &server_path_str, port, &settings)
             .await
             .map_err(|e| format!("Failed to start scrcpy server: {}", e))?;
 
     let shutdown = Arc::new(tokio::sync::Notify::new());
     let control_socket = Arc::new(Mutex::new(streams.control_socket));
+    let process = Arc::new(Mutex::new(Some(server_process)));
 
     let audio_handle = if let Some(audio_socket) = streams.audio_socket {
         let handle = AudioHandle::new().map_err(|e| format!("Failed to init audio: {}", e))?;
@@ -69,17 +154,41 @@ pub async fn connect_device(
         screen_height: streams.screen_height,
         shutdown: shutdown.clone(),
         audio: audio_handle,
+        process: process.clone(),
+        status: DeviceSessionStatus::Running,
+        window_label: device_window_label(&serial),
     };
 
     let width = streams.screen_width;
     let height = streams.screen_height;
 
+    let session = Arc::new(Mutex::new(session));
     {
-        let mut s = state.session.lock().await;
-        *s = Some(session);
+        let mut sessions = state.sessions.lock().await;
+        sessions.insert(serial.clone(), session.clone());
     }
 
-    let session_arc = state.session.clone();
+    {
+        let session_guard = session.lock().await;
+        emit_session_update(&app, &session_guard).await;
+    }
+
+    if settings.turn_screen_off {
+        tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+        if let Err(err) = control::inject_keycode(&control_socket, "down", control::KEYCODE_POWER, 0, 0)
+            .await
+        {
+            eprintln!("[scrcpy-server] Failed to turn screen off (down): {}", err);
+        }
+        if let Err(err) = control::inject_keycode(&control_socket, "up", control::KEYCODE_POWER, 0, 0)
+            .await
+        {
+            eprintln!("[scrcpy-server] Failed to turn screen off (up): {}", err);
+        }
+    }
+
+    let session_map = state.sessions.clone();
+    let app_for_task = app.clone();
     let serial_clone = serial.clone();
 
     let video_codec = if settings.video_codec == "h265" {
@@ -97,28 +206,60 @@ pub async fn connect_device(
         )
         .await;
         scrcpy::stop_server(&serial_clone, port).await;
-        let _ = server_process.kill().await;
-        let mut s = session_arc.lock().await;
-        *s = None;
+        if let Some(session) = {
+            let sessions = session_map.lock().await;
+            sessions.get(&serial_clone).cloned()
+        } {
+            let mut session_guard = session.lock().await;
+            session_guard.status = DeviceSessionStatus::Stopped;
+            emit_session_update(&app_for_task, &session_guard).await;
+            if let Some(mut process) = session_guard.process.lock().await.take() {
+                let _ = process.kill().await;
+            }
+        }
+        let mut sessions = session_map.lock().await;
+        sessions.remove(&serial_clone);
     });
 
     Ok((width, height))
 }
 
 #[tauri::command]
-pub async fn disconnect_device(state: State<'_, AppState>) -> Result<(), String> {
-    let mut session = state.session.lock().await;
-    if let Some(s) = session.take() {
-        s.shutdown.notify_one();
-        scrcpy::stop_server(&s.device_serial, 27183).await;
+pub async fn disconnect_device(
+    serial: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let session = {
+        let mut sessions = state.sessions.lock().await;
+        sessions.remove(&serial)
+    };
+
+    if let Some(session) = session {
+        let mut session_guard = session.lock().await;
+        session_guard.status = DeviceSessionStatus::Stopping;
+        emit_session_update(&app, &session_guard).await;
+        session_guard.shutdown.notify_one();
+        scrcpy::stop_server(&session_guard.device_serial, 27183)
+            .await
+            .map_err(|e| e.to_string())?;
+        if let Some(mut process) = session_guard.process.lock().await.take() {
+            let _ = process.kill().await;
+        }
+        session_guard.status = DeviceSessionStatus::Stopped;
+        emit_session_update(&app, &session_guard).await;
     }
     Ok(())
 }
 
 #[tauri::command]
-pub async fn set_muted(muted: bool, state: State<'_, AppState>) -> Result<(), String> {
-    let session = state.session.lock().await;
-    let session = session.as_ref().ok_or("Not connected")?;
+pub async fn set_muted(
+    serial: String,
+    muted: bool,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let session = session_for(&state, &serial).await?;
+    let session = session.lock().await;
     if let Some(audio) = &session.audio {
         if muted {
             audio.sink.set_volume(0.0);
@@ -131,13 +272,14 @@ pub async fn set_muted(muted: bool, state: State<'_, AppState>) -> Result<(), St
 
 #[tauri::command]
 pub async fn send_touch(
+    serial: String,
     action: String,
     x: f64,
     y: f64,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let session = state.session.lock().await;
-    let session = session.as_ref().ok_or("Not connected")?;
+    let session = session_for(&state, &serial).await?;
+    let session = session.lock().await;
     let px = (x * session.screen_width as f64) as u32;
     let py = (y * session.screen_height as f64) as u32;
     control::inject_touch(
@@ -154,21 +296,26 @@ pub async fn send_touch(
 
 #[tauri::command]
 pub async fn send_key(
+    serial: String,
     keycode: u32,
     action: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let session = state.session.lock().await;
-    let session = session.as_ref().ok_or("Not connected")?;
+    let session = session_for(&state, &serial).await?;
+    let session = session.lock().await;
     control::inject_keycode(&session.control_socket, &action, keycode, 0, 0)
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn send_text(text: String, state: State<'_, AppState>) -> Result<(), String> {
-    let session = state.session.lock().await;
-    let session = session.as_ref().ok_or("Not connected")?;
+pub async fn send_text(
+    serial: String,
+    text: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let session = session_for(&state, &serial).await?;
+    let session = session.lock().await;
     control::inject_text(&session.control_socket, &text)
         .await
         .map_err(|e| e.to_string())
@@ -176,14 +323,15 @@ pub async fn send_text(text: String, state: State<'_, AppState>) -> Result<(), S
 
 #[tauri::command]
 pub async fn send_scroll(
+    serial: String,
     x: f64,
     y: f64,
     dx: f64,
     dy: f64,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let session = state.session.lock().await;
-    let session = session.as_ref().ok_or("Not connected")?;
+    let session = session_for(&state, &serial).await?;
+    let session = session.lock().await;
     let px = (x * session.screen_width as f64) as u32;
     let py = (y * session.screen_height as f64) as u32;
     let sx = (dx * 120.0) as i16;
@@ -202,9 +350,9 @@ pub async fn send_scroll(
 }
 
 #[tauri::command]
-pub async fn take_screenshot(state: State<'_, AppState>) -> Result<String, String> {
-    let session = state.session.lock().await;
-    let session = session.as_ref().ok_or("Not connected")?;
+pub async fn take_screenshot(serial: String, state: State<'_, AppState>) -> Result<String, String> {
+    let session = session_for(&state, &serial).await?;
+    let session = session.lock().await;
     let png_data = adb::exec_out_screencap(&session.device_serial)
         .await
         .map_err(|e| e.to_string())?;
@@ -212,9 +360,13 @@ pub async fn take_screenshot(state: State<'_, AppState>) -> Result<String, Strin
 }
 
 #[tauri::command]
-pub async fn press_button(button: String, state: State<'_, AppState>) -> Result<(), String> {
-    let session = state.session.lock().await;
-    let session = session.as_ref().ok_or("Not connected")?;
+pub async fn press_button(
+    serial: String,
+    button: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let session = session_for(&state, &serial).await?;
+    let session = session.lock().await;
     let keycode = match button.as_str() {
         "home" => control::KEYCODE_HOME,
         "back" => control::KEYCODE_BACK,
@@ -234,30 +386,33 @@ pub async fn press_button(button: String, state: State<'_, AppState>) -> Result<
 
 #[tauri::command]
 pub async fn update_screen_size(
+    serial: String,
     width: u32,
     height: u32,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let mut session = state.session.lock().await;
-    let session = session.as_mut().ok_or("Not connected")?;
+    let sessions = state.sessions.lock().await;
+    let session = sessions.get(&serial).cloned().ok_or("Not connected")?;
+    drop(sessions);
+    let mut session = session.lock().await;
     session.screen_width = width;
     session.screen_height = height;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn rotate_device(state: State<'_, AppState>) -> Result<(), String> {
-    let session = state.session.lock().await;
-    let session = session.as_ref().ok_or("Not connected")?;
+pub async fn rotate_device(serial: String, state: State<'_, AppState>) -> Result<(), String> {
+    let session = session_for(&state, &serial).await?;
+    let session = session.lock().await;
     control::rotate_device(&session.control_socket)
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn wake_screen(state: State<'_, AppState>) -> Result<(), String> {
-    let session = state.session.lock().await;
-    let session = session.as_ref().ok_or("Not connected")?;
+pub async fn wake_screen(serial: String, state: State<'_, AppState>) -> Result<(), String> {
+    let session = session_for(&state, &serial).await?;
+    let session = session.lock().await;
 
     let is_on = adb::shell(
         &session.device_serial,
@@ -291,12 +446,13 @@ pub async fn wake_screen(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn play_macro(
+    serial: String,
     events: Vec<macro_engine::TimedEvent>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let (socket, sw, sh) = {
-        let session = state.session.lock().await;
-        let session = session.as_ref().ok_or("Not connected")?;
+        let session = session_for(&state, &serial).await?;
+        let session = session.lock().await;
         (
             session.control_socket.clone(),
             session.screen_width,

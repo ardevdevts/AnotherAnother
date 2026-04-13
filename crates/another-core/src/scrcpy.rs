@@ -119,16 +119,10 @@ pub async fn start_server(
         format!("max_fps={}", settings.max_fps),
         format!("video_bit_rate={}", settings.video_bit_rate),
         format!("display_id={}", settings.display_id),
-        format!("keyboard={}", settings.keyboard_mode),
-        format!("mouse={}", settings.mouse_mode),
         format!("show_touches={}", settings.show_touches),
         format!("stay_awake={}", settings.stay_awake),
-        format!("turn_screen_off={}", settings.turn_screen_off),
         format!("power_off_on_close={}", settings.power_off_on_close),
         format!("clipboard_autosync={}", !settings.no_clipboard_autosync),
-        format!("video_buffer={}", settings.video_buffer),
-        format!("audio_buffer={}", settings.audio_buffer),
-        format!("shortcut_mod={}", settings.shortcut_mod),
         "send_device_meta=true".to_string(),
         "send_dummy_byte=false".to_string(),
         "log_level=info".to_string(),
@@ -150,7 +144,10 @@ pub async fn start_server(
     }
 
     if !settings.orientation.trim().is_empty() {
-        args.push(format!("orientation={}", settings.orientation.trim()));
+        args.push(format!(
+            "lock_video_orientation={}",
+            settings.orientation.trim()
+        ));
     }
 
     if !settings.extra_server_args.trim().is_empty() {

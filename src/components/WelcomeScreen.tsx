@@ -23,7 +23,7 @@ import {
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Spinner } from "./ui/spinner";
-import type { Device, ThemePreference } from "../types";
+import type { Device, DeviceSessionInfo, ThemePreference } from "../types";
 import {
   getDeviceDisplayName,
   getDeviceNickname,
@@ -34,11 +34,13 @@ import appIcon from "../assets/icon.png";
 interface WelcomeScreenProps {
   devices: Device[];
   connectingSerial: string | null;
+  deviceSessions: Record<string, DeviceSessionInfo>;
   themePref: ThemePreference;
   onCycleTheme: () => void;
   onOpenSettings: () => void;
   onRefreshDevices: () => void;
-  onConnectDevice: (device: Device) => void;
+  onOpenDevice: (device: Device) => void;
+  onKillSession: (device: Device) => void;
   showToast: (msg: string, type?: "error" | "info") => void;
 }
 
@@ -53,11 +55,13 @@ function isWifiDevice(serial: string) {
 export function WelcomeScreen({
   devices,
   connectingSerial,
+  deviceSessions,
   themePref,
   onCycleTheme,
   onOpenSettings,
   onRefreshDevices,
-  onConnectDevice,
+  onOpenDevice,
+  onKillSession,
   showToast,
 }: WelcomeScreenProps) {
   const [showWifiDialog, setShowWifiDialog] = useState(false);
@@ -69,6 +73,8 @@ export function WelcomeScreen({
   const [editValue, setEditValue] = useState("");
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; device: Device } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  const sessionFor = (serial: string) => deviceSessions[serial];
 
   const runDeviceRefresh = async () => {
     if (isRefreshing) return;
@@ -124,6 +130,16 @@ export function WelcomeScreen({
   const handleToggleWifi = async (event: React.MouseEvent, device: Device) => {
     event.stopPropagation();
     await toggleWifiForDevice(device);
+  };
+
+  const sessionBadge = (serial: string) => {
+    const session = sessionFor(serial);
+    if (!session) return <Badge variant="outline">Idle</Badge>;
+    if (session.status === "running") return <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600">Running</Badge>;
+    if (session.status === "starting") return <Badge className="border-amber-500/30 bg-amber-500/10 text-amber-600">Starting</Badge>;
+    if (session.status === "stopping") return <Badge className="border-rose-500/30 bg-rose-500/10 text-rose-600">Stopping</Badge>;
+    if (session.status === "error") return <Badge className="border-red-500/30 bg-red-500/10 text-red-600">Error</Badge>;
+    return <Badge variant="outline">Stopped</Badge>;
   };
 
   const handleWifiConnect = async () => {
@@ -202,7 +218,7 @@ export function WelcomeScreen({
               <div
                 key={device.serial}
                 className="group flex cursor-pointer items-center gap-3 rounded-3xl border border-border bg-card/90 px-3 py-2 transition-colors hover:bg-accent/50"
-                onClick={() => !connectingSerial && onConnectDevice(device)}
+                onClick={() => onOpenDevice(device)}
                 onContextMenu={(event) => handleContextMenu(event, device)}
               >
                 <div className="flex size-10 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
@@ -246,6 +262,9 @@ export function WelcomeScreen({
                     {truncateSerial(device.serial)}
                   </div>
                 </div>
+                <div className="hidden items-center gap-2 md:flex">
+                  {sessionBadge(device.serial)}
+                </div>
                 <div className="flex items-center gap-1">
                   <Button
                     variant={isWifiDevice(device.serial) || device.wifi_available ? "secondary" : "ghost"}
@@ -256,6 +275,19 @@ export function WelcomeScreen({
                   >
                     {togglingSerial === device.serial ? <Spinner className="size-4" /> : <WifiIcon className="size-4" />}
                   </Button>
+                  {sessionFor(device.serial)?.status === "running" && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title="Kill device session"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onKillSession(device);
+                      }}
+                    >
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Kill</span>
+                    </Button>
+                  )}
                   {connectingSerial === device.serial ? <Spinner className="size-4 text-muted-foreground" /> : <ChevronRightIcon className="size-4 text-muted-foreground group-hover:text-foreground" />}
                 </div>
               </div>
@@ -271,11 +303,19 @@ export function WelcomeScreen({
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
           <Button className="w-full justify-start rounded-xl" variant="ghost" size="sm" onClick={() => {
-            onConnectDevice(contextMenu.device);
+            onOpenDevice(contextMenu.device);
             setContextMenu(null);
           }}>
-            Connect
+            Open
           </Button>
+          {sessionFor(contextMenu.device.serial)?.status === "running" && (
+            <Button className="w-full justify-start rounded-xl" variant="ghost" size="sm" onClick={() => {
+              onKillSession(contextMenu.device);
+              setContextMenu(null);
+            }}>
+              Kill Session
+            </Button>
+          )}
           <Button className="w-full justify-start rounded-xl" variant="ghost" size="sm" onClick={() => {
             setEditingSerial(contextMenu.device.serial);
             setEditValue(getDeviceDisplayName(contextMenu.device));

@@ -14,6 +14,7 @@ function b64ToBytes(b64: string): Uint8Array {
 }
 
 interface UseConnectionOptions {
+  deviceSerial: string;
   settings: Settings;
   showToast: (msg: string, type?: "error" | "info") => void;
   takeScreenshot: () => void;
@@ -63,9 +64,10 @@ export function useConnection(opts: UseConnectionOptions) {
   }, []);
 
   const setMuted = useCallback(async (m: boolean) => {
+    if (!opts.deviceSerial) return;
     setMutedState(m);
-    try { await invoke("set_muted", { muted: m }); } catch {}
-  }, []);
+    try { await invoke("set_muted", { serial: opts.deviceSerial, muted: m }); } catch {}
+  }, [opts.deviceSerial]);
 
   const connectToDevice = useCallback(async (device: Device, s: Settings, silent = false) => {
     setConnectingSerial(device.serial);
@@ -99,7 +101,7 @@ export function useConnection(opts: UseConnectionOptions) {
                       if (prevLandscape !== nowLandscape) {
                         nativeSize.current = { width: nativeSize.current.height, height: nativeSize.current.width };
                       }
-                      invoke("update_screen_size", { width: nativeSize.current.width, height: nativeSize.current.height });
+                      invoke("update_screen_size", { serial: opts.deviceSerial, width: nativeSize.current.width, height: nativeSize.current.height });
                       const chromeH = 52;
                       const aspect = f.displayWidth / f.displayHeight;
                       const isLandscape = aspect > 1;
@@ -182,17 +184,18 @@ export function useConnection(opts: UseConnectionOptions) {
       setConnectingSerial(null);
       isReconnecting.current = false;
     }
-  }, [showToast, cleanupDecoder]);
+  }, [showToast, cleanupDecoder, opts.deviceSerial]);
 
   const disconnect = useCallback(async () => {
+    if (!opts.deviceSerial) return;
     cleanupDecoder();
-    try { await invoke("disconnect_device"); } catch {}
+    try { await invoke("disconnect_device", { serial: opts.deviceSerial }); } catch {}
     setConnectedDevice(null);
     setScreen("welcome");
     try {
       await getCurrentWindow().setSize(new LogicalSize(380, 750));
     } catch {}
-  }, [cleanupDecoder]);
+  }, [cleanupDecoder, opts.deviceSerial]);
 
   const scheduleReconnect = useCallback((s: Settings) => {
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
@@ -237,9 +240,10 @@ export function useConnection(opts: UseConnectionOptions) {
   }, [showToast]);
 
   const pressButton = useCallback(async (button: string) => {
+    if (!opts.deviceSerial) return;
     opts.onRecordEvent?.({ type: "button", button });
-    try { await invoke("press_button", { button }); } catch {}
-  }, []);
+    try { await invoke("press_button", { serial: opts.deviceSerial, button }); } catch {}
+  }, [opts.deviceSerial]);
 
   const handleCanvasMouseEvent = async (e: React.MouseEvent<HTMLCanvasElement>, action: string) => {
     if (!connectedDevice) return;
@@ -249,7 +253,7 @@ export function useConnection(opts: UseConnectionOptions) {
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
     opts.onRecordEvent?.({ type: "touch", action, x, y });
-    try { await invoke("send_touch", { action, x, y }); } catch {}
+    try { await invoke("send_touch", { serial: opts.deviceSerial, action, x, y }); } catch {}
   };
 
   const handleWheel = async (e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -261,7 +265,7 @@ export function useConnection(opts: UseConnectionOptions) {
     const y = (e.clientY - rect.top) / rect.height;
     const dy = e.deltaY > 0 ? -1 : 1;
     opts.onRecordEvent?.({ type: "scroll", x, y, dx: 0, dy });
-    try { await invoke("send_scroll", { x, y, dx: 0, dy }); } catch {}
+    try { await invoke("send_scroll", { serial: opts.deviceSerial, x, y, dx: 0, dy }); } catch {}
   };
 
   const handleKeyDown = async (e: React.KeyboardEvent) => {
@@ -269,7 +273,7 @@ export function useConnection(opts: UseConnectionOptions) {
     e.preventDefault();
     if (e.key.length === 1) {
       opts.onRecordEvent?.({ type: "text", text: e.key });
-      try { await invoke("send_text", { text: e.key }); } catch {}
+      try { await invoke("send_text", { serial: opts.deviceSerial, text: e.key }); } catch {}
     } else {
       const keyMap: Record<string, number> = {
         Enter: 66, Backspace: 67, Delete: 112,
@@ -280,8 +284,8 @@ export function useConnection(opts: UseConnectionOptions) {
       if (keycode) {
         opts.onRecordEvent?.({ type: "key", keycode, action: "down" });
         try {
-          await invoke("send_key", { keycode, action: "down" });
-          await invoke("send_key", { keycode, action: "up" });
+          await invoke("send_key", { serial: opts.deviceSerial, keycode, action: "down" });
+          await invoke("send_key", { serial: opts.deviceSerial, keycode, action: "up" });
         } catch {}
       }
     }

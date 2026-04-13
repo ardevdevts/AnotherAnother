@@ -57,6 +57,8 @@ pub fn run() {
             let _ = app.emit("menu-event", event.id().0.as_str());
         })
         .invoke_handler(tauri::generate_handler![
+            commands::open_device_window,
+            commands::list_device_sessions,
             commands::list_devices,
             commands::connect_device,
             commands::disconnect_device,

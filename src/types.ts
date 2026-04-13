@@ -5,6 +5,14 @@ export interface Device {
   wifi_available?: boolean;
 }
 
+export type DeviceSessionStatus = "starting" | "running" | "stopping" | "stopped" | "error";
+
+export interface DeviceSessionInfo {
+  serial: string;
+  status: DeviceSessionStatus;
+  window_label: string;
+}
+
 export interface Toast {
   id: number;
   message: string;
@@ -145,9 +153,9 @@ export const CODEC_OPTIONS = [
 export const ORIENTATION_OPTIONS = [
   { value: "", label: "Auto" },
   { value: "0", label: "0°" },
-  { value: "90", label: "90°" },
-  { value: "180", label: "180°" },
-  { value: "270", label: "270°" },
+  { value: "1", label: "90°" },
+  { value: "2", label: "180°" },
+  { value: "3", label: "270°" },
 ];
 
 export const INPUT_MODE_OPTIONS = [
