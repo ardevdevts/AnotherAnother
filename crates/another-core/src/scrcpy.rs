@@ -109,22 +109,18 @@ pub async fn start_server(
         });
     }
 
-    let (mut video_socket, _) = tokio::time::timeout(
-        tokio::time::Duration::from_secs(10),
-        listener.accept(),
-    )
-    .await
-    .map_err(|_| anyhow!("Timeout waiting for video connection"))?
-    .map_err(|e| anyhow!("Accept failed: {}", e))?;
+    let (mut video_socket, _) =
+        tokio::time::timeout(tokio::time::Duration::from_secs(10), listener.accept())
+            .await
+            .map_err(|_| anyhow!("Timeout waiting for video connection"))?
+            .map_err(|e| anyhow!("Accept failed: {}", e))?;
 
     let audio_socket = if settings.audio {
-        let (mut audio_sock, _) = tokio::time::timeout(
-            tokio::time::Duration::from_secs(5),
-            listener.accept(),
-        )
-        .await
-        .map_err(|_| anyhow!("Timeout waiting for audio connection"))?
-        .map_err(|e| anyhow!("Accept failed: {}", e))?;
+        let (mut audio_sock, _) =
+            tokio::time::timeout(tokio::time::Duration::from_secs(5), listener.accept())
+                .await
+                .map_err(|_| anyhow!("Timeout waiting for audio connection"))?
+                .map_err(|e| anyhow!("Accept failed: {}", e))?;
 
         let mut audio_codec_buf = [0u8; 4];
         audio_sock.read_exact(&mut audio_codec_buf).await?;
@@ -134,13 +130,11 @@ pub async fn start_server(
         None
     };
 
-    let (control_socket, _) = tokio::time::timeout(
-        tokio::time::Duration::from_secs(5),
-        listener.accept(),
-    )
-    .await
-    .map_err(|_| anyhow!("Timeout waiting for control connection"))?
-    .map_err(|e| anyhow!("Accept failed: {}", e))?;
+    let (control_socket, _) =
+        tokio::time::timeout(tokio::time::Duration::from_secs(5), listener.accept())
+            .await
+            .map_err(|_| anyhow!("Timeout waiting for control connection"))?
+            .map_err(|e| anyhow!("Accept failed: {}", e))?;
 
     let mut device_name_buf = [0u8; 64];
     video_socket.read_exact(&mut device_name_buf).await?;

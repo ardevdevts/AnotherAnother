@@ -1,8 +1,8 @@
-use another_core::{adb, control, macro_engine, scrcpy};
-use another_core::scrcpy::StreamSettings;
 use crate::audio::{self, AudioHandle};
 use crate::state::{AppState, ScrcpySession};
 use crate::video::{self, FrameEvent};
+use another_core::scrcpy::StreamSettings;
+use another_core::{adb, control, macro_engine, scrcpy};
 use base64::Engine;
 use serde::Serialize;
 use std::path::PathBuf;
@@ -37,9 +37,7 @@ pub async fn connect_device(
         .path()
         .resource_dir()
         .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-    let server_path = resource_dir
-        .join("resources")
-        .join("scrcpy-server-v2.7");
+    let server_path = resource_dir.join("resources").join("scrcpy-server-v2.7");
     let server_path_str = server_path.to_string_lossy().to_string();
 
     let port: u16 = 27183;
@@ -53,8 +51,7 @@ pub async fn connect_device(
     let control_socket = Arc::new(Mutex::new(streams.control_socket));
 
     let audio_handle = if let Some(audio_socket) = streams.audio_socket {
-        let handle = AudioHandle::new()
-            .map_err(|e| format!("Failed to init audio: {}", e))?;
+        let handle = AudioHandle::new().map_err(|e| format!("Failed to init audio: {}", e))?;
         let handle = Arc::new(handle);
         let audio_shutdown = shutdown.clone();
         let audio_ref = handle.clone();
@@ -93,7 +90,13 @@ pub async fn connect_device(
     };
 
     tokio::spawn(async move {
-        video::stream_video(streams.video_socket, on_frame, shutdown.clone(), video_codec).await;
+        video::stream_video(
+            streams.video_socket,
+            on_frame,
+            shutdown.clone(),
+            video_codec,
+        )
+        .await;
         scrcpy::stop_server(&serial_clone, port).await;
         let _ = server_process.kill().await;
         let mut s = session_arc.lock().await;
@@ -231,7 +234,11 @@ pub async fn press_button(button: String, state: State<'_, AppState>) -> Result<
 }
 
 #[tauri::command]
-pub async fn update_screen_size(width: u32, height: u32, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn update_screen_size(
+    width: u32,
+    height: u32,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let mut session = state.session.lock().await;
     let session = session.as_mut().ok_or("Not connected")?;
     session.screen_width = width;
@@ -253,13 +260,16 @@ pub async fn wake_screen(state: State<'_, AppState>) -> Result<(), String> {
     let session = state.session.lock().await;
     let session = session.as_ref().ok_or("Not connected")?;
 
-    let is_on = adb::shell(&session.device_serial, "dumpsys power | grep 'Display Power'")
-        .await
-        .map_err(|e| e.to_string())?
-        .wait_with_output()
-        .await
-        .map(|o| String::from_utf8_lossy(&o.stdout).contains("state=ON"))
-        .unwrap_or(true);
+    let is_on = adb::shell(
+        &session.device_serial,
+        "dumpsys power | grep 'Display Power'",
+    )
+    .await
+    .map_err(|e| e.to_string())?
+    .wait_with_output()
+    .await
+    .map(|o| String::from_utf8_lossy(&o.stdout).contains("state=ON"))
+    .unwrap_or(true);
 
     if !is_on {
         control::inject_keycode(
@@ -271,15 +281,9 @@ pub async fn wake_screen(state: State<'_, AppState>) -> Result<(), String> {
         )
         .await
         .map_err(|e| e.to_string())?;
-        control::inject_keycode(
-            &session.control_socket,
-            "up",
-            control::KEYCODE_WAKEUP,
-            0,
-            0,
-        )
-        .await
-        .map_err(|e| e.to_string())?;
+        control::inject_keycode(&session.control_socket, "up", control::KEYCODE_WAKEUP, 0, 0)
+            .await
+            .map_err(|e| e.to_string())?;
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     }
 
@@ -393,10 +397,7 @@ pub async fn list_macro_files(dir: String) -> Result<Vec<MacroInfo>, String> {
 }
 
 #[tauri::command]
-pub async fn load_macro_file(
-    dir: String,
-    name: String,
-) -> Result<macro_engine::Macro, String> {
+pub async fn load_macro_file(dir: String, name: String) -> Result<macro_engine::Macro, String> {
     let path = macro_path(&dir, &name);
     let data = tokio::fs::read_to_string(&path)
         .await
@@ -405,10 +406,7 @@ pub async fn load_macro_file(
 }
 
 #[tauri::command]
-pub async fn save_macro_file(
-    dir: String,
-    macro_data: macro_engine::Macro,
-) -> Result<(), String> {
+pub async fn save_macro_file(dir: String, macro_data: macro_engine::Macro) -> Result<(), String> {
     let path = PathBuf::from(&dir);
     tokio::fs::create_dir_all(&path)
         .await
@@ -446,8 +444,7 @@ pub async fn rename_macro_file(
     let data = tokio::fs::read_to_string(&old_path)
         .await
         .map_err(|e| e.to_string())?;
-    let mut m: macro_engine::Macro =
-        serde_json::from_str(&data).map_err(|e| e.to_string())?;
+    let mut m: macro_engine::Macro = serde_json::from_str(&data).map_err(|e| e.to_string())?;
     m.name = new_name.clone();
 
     let new_path = macro_path(&dir, &new_name);
@@ -481,12 +478,16 @@ pub async fn save_macros_order(dir: String, order: Vec<String>) -> Result<(), St
 
 #[tauri::command]
 pub async fn wifi_connect(address: String) -> Result<(), String> {
-    adb::connect_device(&address).await.map_err(|e| e.to_string())
+    adb::connect_device(&address)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn wifi_disconnect(address: String) -> Result<(), String> {
-    adb::disconnect_device(&address).await.map_err(|e| e.to_string())
+    adb::disconnect_device(&address)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -499,11 +500,12 @@ pub async fn wifi_enable(serial: String) -> Result<String, String> {
     let ip = adb::get_device_ip(&serial)
         .await
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| "Device is not connected to WiFi. Connect it to the same network as this computer.".to_string())?;
+        .ok_or_else(|| {
+            "Device is not connected to WiFi. Connect it to the same network as this computer."
+                .to_string()
+        })?;
 
-    adb::tcpip(&serial, 5555)
-        .await
-        .map_err(|e| e.to_string())?;
+    adb::tcpip(&serial, 5555).await.map_err(|e| e.to_string())?;
 
     let addr = format!("{}:5555", ip);
     let mut connected = false;
@@ -516,7 +518,10 @@ pub async fn wifi_enable(serial: String) -> Result<String, String> {
     }
 
     if !connected {
-        return Err(format!("Could not connect to {} -- make sure both devices are on the same WiFi network", addr));
+        return Err(format!(
+            "Could not connect to {} -- make sure both devices are on the same WiFi network",
+            addr
+        ));
     }
 
     Ok(addr)
@@ -534,16 +539,12 @@ pub async fn start_mcp_server(
         return Ok(());
     }
 
-    let scrcpy_server_path = app
-        .path()
-        .resource_dir()
-        .ok()
-        .map(|dir| {
-            dir.join("resources")
-                .join("scrcpy-server-v2.7")
-                .to_string_lossy()
-                .to_string()
-        });
+    let scrcpy_server_path = app.path().resource_dir().ok().map(|dir| {
+        dir.join("resources")
+            .join("scrcpy-server-v2.7")
+            .to_string_lossy()
+            .to_string()
+    });
 
     let ct = CancellationToken::new();
     mcp.cancel = Some(ct.clone());

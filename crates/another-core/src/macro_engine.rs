@@ -84,15 +84,8 @@ pub async fn play_events(
             MacroEvent::Touch { action, x, y } => {
                 let px = (*x * screen_w as f64) as u32;
                 let py = (*y * screen_h as f64) as u32;
-                control::inject_touch(
-                    socket,
-                    action,
-                    px,
-                    py,
-                    screen_w as u16,
-                    screen_h as u16,
-                )
-                .await?;
+                control::inject_touch(socket, action, px, py, screen_w as u16, screen_h as u16)
+                    .await?;
             }
             MacroEvent::Text { text } => {
                 control::inject_text(socket, text).await?;
@@ -105,16 +98,8 @@ pub async fn play_events(
                 let py = (*y * screen_h as f64) as u32;
                 let sx = (*dx * 120.0) as i16;
                 let sy = (*dy * 120.0) as i16;
-                control::inject_scroll(
-                    socket,
-                    px,
-                    py,
-                    screen_w as u16,
-                    screen_h as u16,
-                    sx,
-                    sy,
-                )
-                .await?;
+                control::inject_scroll(socket, px, py, screen_w as u16, screen_h as u16, sx, sy)
+                    .await?;
             }
             MacroEvent::Button { button } => {
                 let kc = match button.as_str() {

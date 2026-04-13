@@ -5,6 +5,15 @@ use std::sync::OnceLock;
 use tokio::process::Command;
 
 static RESOURCE_DIR: OnceLock<PathBuf> = OnceLock::new();
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+fn configure_command(command: &mut Command) {
+    #[cfg(windows)]
+    {
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+}
 
 pub fn set_resource_dir(path: PathBuf) {
     let _ = RESOURCE_DIR.set(path);
@@ -18,26 +27,36 @@ pub struct Device {
 }
 
 fn adb_binary_name() -> &'static str {
-    if cfg!(windows) { "adb.exe" } else { "adb" }
+    if cfg!(windows) {
+        "adb.exe"
+    } else {
+        "adb"
+    }
 }
 
 fn adb_path() -> PathBuf {
     let binary = adb_binary_name();
 
     if let Ok(home) = std::env::var("HOME") {
-        let sdk_adb = PathBuf::from(&home).join("Library/Android/sdk/platform-tools").join(binary);
+        let sdk_adb = PathBuf::from(&home)
+            .join("Library/Android/sdk/platform-tools")
+            .join(binary);
         if sdk_adb.exists() {
             return sdk_adb;
         }
     }
     if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
-        let sdk_adb = PathBuf::from(&local_app_data).join("Android/Sdk/platform-tools").join(binary);
+        let sdk_adb = PathBuf::from(&local_app_data)
+            .join("Android/Sdk/platform-tools")
+            .join(binary);
         if sdk_adb.exists() {
             return sdk_adb;
         }
     }
     if let Ok(android_home) = std::env::var("ANDROID_HOME") {
-        let sdk_adb = PathBuf::from(&android_home).join("platform-tools").join(binary);
+        let sdk_adb = PathBuf::from(&android_home)
+            .join("platform-tools")
+            .join(binary);
         if sdk_adb.exists() {
             return sdk_adb;
         }
@@ -52,7 +71,10 @@ fn adb_path() -> PathBuf {
 }
 
 async fn run_adb(args: &[&str]) -> Result<Vec<u8>> {
-    let output = Command::new(adb_path())
+    let mut command = Command::new(adb_path());
+    configure_command(&mut command);
+
+    let output = command
         .args(args)
         .output()
         .await
@@ -130,7 +152,10 @@ pub async fn remove_forward(serial: &str, local_port: u16) -> Result<()> {
 }
 
 pub async fn shell(serial: &str, cmd: &str) -> Result<tokio::process::Child> {
-    let child = Command::new(adb_path())
+    let mut command = Command::new(adb_path());
+    configure_command(&mut command);
+
+    let child = command
         .args(["-s", serial, "shell", cmd])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())

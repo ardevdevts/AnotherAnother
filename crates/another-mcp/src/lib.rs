@@ -1,10 +1,10 @@
 pub mod server;
 
-use std::sync::Arc;
 use anyhow::Result;
 use rmcp::transport::streamable_http_server::{
-    StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+    session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
 };
+use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 pub async fn start_sse_server(
@@ -12,8 +12,8 @@ pub async fn start_sse_server(
     scrcpy_server_path: Option<String>,
     cancel: CancellationToken,
 ) -> Result<()> {
-    let config = StreamableHttpServerConfig::default()
-        .with_cancellation_token(cancel.child_token());
+    let config =
+        StreamableHttpServerConfig::default().with_cancellation_token(cancel.child_token());
 
     let service = StreamableHttpService::new(
         move || Ok(server::AnotherMcp::new(scrcpy_server_path.clone())),
@@ -26,7 +26,10 @@ pub async fn start_sse_server(
     let addr = format!("127.0.0.1:{}", port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
-    eprintln!("[mcp] SSE server listening on http://{}/mcp", listener.local_addr()?);
+    eprintln!(
+        "[mcp] SSE server listening on http://{}/mcp",
+        listener.local_addr()?
+    );
 
     let ct = cancel.clone();
     axum::serve(listener, router)

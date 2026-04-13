@@ -98,8 +98,7 @@ pub fn parse_ui_hierarchy(
     screen_width: u32,
     screen_height: u32,
 ) -> Result<Vec<UiElement>, String> {
-    let doc =
-        roxmltree::Document::parse(xml).map_err(|e| format!("XML parse error: {}", e))?;
+    let doc = roxmltree::Document::parse(xml).map_err(|e| format!("XML parse error: {}", e))?;
     let root = doc.root_element();
     let sw = screen_width as f64;
     let sh = screen_height as f64;
@@ -190,20 +189,12 @@ pub fn find_elements(
                 }
             }
             if let Some(cd) = content_desc {
-                if !el
-                    .content_desc
-                    .to_lowercase()
-                    .contains(&cd.to_lowercase())
-                {
+                if !el.content_desc.to_lowercase().contains(&cd.to_lowercase()) {
                     return false;
                 }
             }
             if let Some(rid) = resource_id {
-                if !el
-                    .resource_id
-                    .to_lowercase()
-                    .contains(&rid.to_lowercase())
-                {
+                if !el.resource_id.to_lowercase().contains(&rid.to_lowercase()) {
                     return false;
                 }
             }
@@ -218,12 +209,7 @@ pub fn find_elements(
             text: el.text.clone(),
             content_desc: el.content_desc.clone(),
             resource_id: el.resource_id.clone(),
-            class: el
-                .class
-                .rsplit('.')
-                .next()
-                .unwrap_or(&el.class)
-                .to_string(),
+            class: el.class.rsplit('.').next().unwrap_or(&el.class).to_string(),
             clickable: el.clickable,
             center_x: el.center_x,
             center_y: el.center_y,

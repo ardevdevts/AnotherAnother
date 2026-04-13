@@ -1,11 +1,11 @@
 use another_core::macro_engine::{self, MacroEvent, MacroRecorder};
-use another_core::{adb, accessibility, control, scrcpy};
 use another_core::scrcpy::StreamSettings;
+use another_core::{accessibility, adb, control, scrcpy};
 use base64::Engine;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::CallToolResult;
-use rmcp::{ServerHandler, tool, tool_handler, tool_router};
+use rmcp::{tool, tool_handler, tool_router, ServerHandler};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -114,10 +114,14 @@ pub struct OpenUrlParams {
     #[schemars(description = "URL to open")]
     pub url: String,
     #[serde(default)]
-    #[schemars(description = "Browser app package (default com.android.chrome). Ignored when use_system_handler is true.")]
+    #[schemars(
+        description = "Browser app package (default com.android.chrome). Ignored when use_system_handler is true."
+    )]
     pub browser_package: Option<String>,
     #[serde(default)]
-    #[schemars(description = "If true, use the system default URL handler (often the Google app for google.com). If false, opens in browser_package (Chrome by default).")]
+    #[schemars(
+        description = "If true, use the system default URL handler (often the Google app for google.com). If false, opens in browser_package (Chrome by default)."
+    )]
     pub use_system_handler: bool,
 }
 
@@ -194,9 +198,7 @@ impl AnotherMcp {
         }
     }
 
-    async fn get_ui_elements(
-        &self,
-    ) -> Result<(Vec<accessibility::UiElement>, u32, u32), String> {
+    async fn get_ui_elements(&self) -> Result<(Vec<accessibility::UiElement>, u32, u32), String> {
         let (serial, sw, sh) = {
             let session = self.session.lock().await;
             let s = session.as_ref().ok_or("No device connected")?;
@@ -320,15 +322,24 @@ impl AnotherMcp {
     #[tool(description = "Take a screenshot of the connected device. Returns a PNG image.")]
     async fn another_take_screenshot(&self) -> Result<CallToolResult, rmcp::ErrorData> {
         let session = self.session.lock().await;
-        let session = session.as_ref().ok_or_else(|| rmcp::ErrorData::internal_error("No device connected", None))?;
+        let session = session
+            .as_ref()
+            .ok_or_else(|| rmcp::ErrorData::internal_error("No device connected", None))?;
         let png_data = adb::exec_out_screencap(&session.device_serial)
             .await
-            .map_err(|e| rmcp::ErrorData::internal_error(format!("Screenshot failed: {}", e), None))?;
+            .map_err(|e| {
+                rmcp::ErrorData::internal_error(format!("Screenshot failed: {}", e), None)
+            })?;
         let b64 = base64::engine::general_purpose::STANDARD.encode(&png_data);
-        Ok(CallToolResult::success(vec![rmcp::model::Content::image(b64, "image/png")]))
+        Ok(CallToolResult::success(vec![rmcp::model::Content::image(
+            b64,
+            "image/png",
+        )]))
     }
 
-    #[tool(description = "Press a device button (home, back, recents, power, volume_up, volume_down)")]
+    #[tool(
+        description = "Press a device button (home, back, recents, power, volume_up, volume_down)"
+    )]
     async fn another_press_button(&self, params: Parameters<ButtonParams>) -> String {
         let params = params.0;
         {
@@ -346,10 +357,14 @@ impl AnotherMcp {
                 "volume_down" => control::KEYCODE_VOLUME_DOWN,
                 _ => return format!("Unknown button: {}", params.button),
             };
-            if let Err(e) = control::inject_keycode(&session.control_socket, "down", keycode, 0, 0).await {
+            if let Err(e) =
+                control::inject_keycode(&session.control_socket, "down", keycode, 0, 0).await
+            {
                 return format!("Error: {}", e);
             }
-            if let Err(e) = control::inject_keycode(&session.control_socket, "up", keycode, 0, 0).await {
+            if let Err(e) =
+                control::inject_keycode(&session.control_socket, "up", keycode, 0, 0).await
+            {
                 return format!("Error: {}", e);
             }
         }
@@ -394,10 +409,13 @@ impl AnotherMcp {
             if let Err(e) = control::inject_touch(
                 &session.control_socket,
                 &params.action,
-                px, py,
+                px,
+                py,
                 session.screen_width as u16,
                 session.screen_height as u16,
-            ).await {
+            )
+            .await
+            {
                 return format!("Error: {}", e);
             }
         }
@@ -407,7 +425,10 @@ impl AnotherMcp {
             y: params.y,
         })
         .await;
-        format!("Touch {} at ({:.2}, {:.2})", params.action, params.x, params.y)
+        format!(
+            "Touch {} at ({:.2}, {:.2})",
+            params.action, params.x, params.y
+        )
     }
 
     #[tool(description = "Send a scroll event at normalized coordinates")]
@@ -425,11 +446,15 @@ impl AnotherMcp {
             let sy = (params.dy * 120.0) as i16;
             if let Err(e) = control::inject_scroll(
                 &session.control_socket,
-                px, py,
+                px,
+                py,
                 session.screen_width as u16,
                 session.screen_height as u16,
-                sx, sy,
-            ).await {
+                sx,
+                sy,
+            )
+            .await
+            {
                 return format!("Error: {}", e);
             }
         }
@@ -440,7 +465,10 @@ impl AnotherMcp {
             dy: params.dy,
         })
         .await;
-        format!("Scrolled at ({:.2}, {:.2}) by ({:.2}, {:.2})", params.x, params.y, params.dx, params.dy)
+        format!(
+            "Scrolled at ({:.2}, {:.2}) by ({:.2}, {:.2})",
+            params.x, params.y, params.dx, params.dy
+        )
     }
 
     #[tool(description = "Enable WiFi debugging on a USB-connected device and connect wirelessly")]
@@ -506,25 +534,25 @@ impl AnotherMcp {
             None => return "No device connected".to_string(),
         };
         match adb::shell(&session.device_serial, &params.0.command).await {
-            Ok(child) => {
-                match child.wait_with_output().await {
-                    Ok(output) => {
-                        let stdout = String::from_utf8_lossy(&output.stdout);
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        if stderr.is_empty() {
-                            stdout.to_string()
-                        } else {
-                            format!("{}\nSTDERR: {}", stdout, stderr)
-                        }
+            Ok(child) => match child.wait_with_output().await {
+                Ok(output) => {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    if stderr.is_empty() {
+                        stdout.to_string()
+                    } else {
+                        format!("{}\nSTDERR: {}", stdout, stderr)
                     }
-                    Err(e) => format!("Error reading output: {}", e),
                 }
-            }
+                Err(e) => format!("Error reading output: {}", e),
+            },
             Err(e) => format!("Error: {}", e),
         }
     }
 
-    #[tool(description = "Perform a swipe gesture from one point to another at normalized coordinates (0.0-1.0)")]
+    #[tool(
+        description = "Perform a swipe gesture from one point to another at normalized coordinates (0.0-1.0)"
+    )]
     async fn another_swipe(&self, params: Parameters<SwipeParams>) -> String {
         let params = params.0;
         let (socket, w, h) = {
@@ -533,7 +561,11 @@ impl AnotherMcp {
                 Some(s) => s,
                 None => return "No device connected".to_string(),
             };
-            (session.control_socket.clone(), session.screen_width, session.screen_height)
+            (
+                session.control_socket.clone(),
+                session.screen_width,
+                session.screen_height,
+            )
         };
 
         let from_px = (params.from_x * w as f64) as u32;
@@ -542,10 +574,9 @@ impl AnotherMcp {
         let to_py = (params.to_y * h as f64) as u32;
         let steps = params.duration_ms.unwrap_or(300) / 16;
 
-        if let Err(e) = control::inject_touch(
-            &socket, "down",
-            from_px, from_py, w as u16, h as u16,
-        ).await {
+        if let Err(e) =
+            control::inject_touch(&socket, "down", from_px, from_py, w as u16, h as u16).await
+        {
             return format!("Error: {}", e);
         }
 
@@ -554,18 +585,16 @@ impl AnotherMcp {
             let cx = from_px as f64 + (to_px as f64 - from_px as f64) * t;
             let cy = from_py as f64 + (to_py as f64 - from_py as f64) * t;
             tokio::time::sleep(tokio::time::Duration::from_millis(16)).await;
-            if let Err(e) = control::inject_touch(
-                &socket, "move",
-                cx as u32, cy as u32, w as u16, h as u16,
-            ).await {
+            if let Err(e) =
+                control::inject_touch(&socket, "move", cx as u32, cy as u32, w as u16, h as u16)
+                    .await
+            {
                 return format!("Error: {}", e);
             }
         }
 
-        if let Err(e) = control::inject_touch(
-            &socket, "up",
-            to_px, to_py, w as u16, h as u16,
-        ).await {
+        if let Err(e) = control::inject_touch(&socket, "up", to_px, to_py, w as u16, h as u16).await
+        {
             return format!("Error: {}", e);
         }
 
@@ -575,7 +604,9 @@ impl AnotherMcp {
         )
     }
 
-    #[tool(description = "Open a URL on the device. By default targets Chrome (com.android.chrome) so links open in a real browser; set use_system_handler true for the previous default-handler behavior.")]
+    #[tool(
+        description = "Open a URL on the device. By default targets Chrome (com.android.chrome) so links open in a real browser; set use_system_handler true for the previous default-handler behavior."
+    )]
     async fn another_open_url(&self, params: Parameters<OpenUrlParams>) -> String {
         let session = self.session.lock().await;
         let session = match session.as_ref() {
@@ -595,7 +626,8 @@ impl AnotherMcp {
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_')
             {
-                return "Invalid browser_package (use letters, digits, dots, underscores)".to_string();
+                return "Invalid browser_package (use letters, digits, dots, underscores)"
+                    .to_string();
             }
             format!(
                 "am start -a android.intent.action.VIEW -d '{}' -p {}",
@@ -631,7 +663,9 @@ impl AnotherMcp {
         }
     }
 
-    #[tool(description = "Get the UI accessibility tree of the current screen. Returns a hierarchical text representation of all UI elements with their properties and normalized coordinates (0.0-1.0). Use this to understand the screen layout before interacting. Coordinates can be used directly with send_touch.")]
+    #[tool(
+        description = "Get the UI accessibility tree of the current screen. Returns a hierarchical text representation of all UI elements with their properties and normalized coordinates (0.0-1.0). Use this to understand the screen layout before interacting. Coordinates can be used directly with send_touch."
+    )]
     async fn another_get_ui_tree(&self) -> String {
         match self.get_ui_elements().await {
             Ok((elements, sw, sh)) => {
@@ -642,7 +676,9 @@ impl AnotherMcp {
         }
     }
 
-    #[tool(description = "Search for UI elements on screen by text, content description, resource ID, or class name. Returns matching elements with normalized coordinates ready to use with send_touch. Much more reliable than screenshot-based element discovery.")]
+    #[tool(
+        description = "Search for UI elements on screen by text, content description, resource ID, or class name. Returns matching elements with normalized coordinates ready to use with send_touch. Much more reliable than screenshot-based element discovery."
+    )]
     async fn another_find_on_screen(&self, params: Parameters<FindOnScreenParams>) -> String {
         let p = params.0;
         if p.text.is_none()
@@ -674,7 +710,9 @@ impl AnotherMcp {
         }
     }
 
-    #[tool(description = "Start recording a macro. All subsequent actions (touch, text, scroll, button presses) will be recorded with timing until you call macro_stop.")]
+    #[tool(
+        description = "Start recording a macro. All subsequent actions (touch, text, scroll, button presses) will be recorded with timing until you call macro_stop."
+    )]
     async fn another_macro_record(&self, params: Parameters<MacroNameParams>) -> String {
         let mut recorder = self.recorder.lock().await;
         if recorder.is_some() {
@@ -698,7 +736,9 @@ impl AnotherMcp {
         format!("Saved macro '{}' with {} events", name, count)
     }
 
-    #[tool(description = "Play a recorded macro by name. Replays all recorded actions with original timing.")]
+    #[tool(
+        description = "Play a recorded macro by name. Replays all recorded actions with original timing."
+    )]
     async fn another_macro_play(&self, params: Parameters<MacroPlayParams>) -> String {
         let m = {
             let macros = self.macros.lock().await;

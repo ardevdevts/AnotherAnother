@@ -5,7 +5,10 @@ use tokio_util::sync::CancellationToken;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
-#[command(name = "another-mcp", about = "MCP server for Android device control via Another")]
+#[command(
+    name = "another-mcp",
+    about = "MCP server for Android device control via Another"
+)]
 struct Args {
     #[arg(long, env = "SCRCPY_SERVER_PATH")]
     scrcpy_server: Option<String>,
