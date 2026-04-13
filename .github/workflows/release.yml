@@ -105,7 +105,6 @@ jobs:
           releaseBody: ${{ needs.release-notes.outputs.notes }}
           releaseDraft: false
           prerelease: false
-          updaterJsonKeepUniversal: true
 
   build-windows:
     needs: release-notes
@@ -149,4 +148,3 @@ jobs:
           releaseBody: ${{ needs.release-notes.outputs.notes }}
           releaseDraft: false
           prerelease: false
-          updaterJsonKeepUniversal: true
