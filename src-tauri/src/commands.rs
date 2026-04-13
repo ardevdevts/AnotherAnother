@@ -5,6 +5,7 @@ use another_core::scrcpy::StreamSettings;
 use another_core::{adb, control, macro_engine, scrcpy};
 use base64::Engine;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::ipc::Channel;
@@ -53,6 +54,83 @@ async fn emit_session_update(app: &AppHandle, session: &ScrcpySession) {
             window_label: session.window_label.clone(),
         },
     );
+}
+
+pub async fn disconnect_device_session(
+    app: &AppHandle,
+    sessions_map: &Arc<Mutex<HashMap<String, Arc<Mutex<ScrcpySession>>>>>,
+    serial: &str,
+    close_window: bool,
+) -> Result<(), String> {
+    let session = {
+        let mut sessions = sessions_map.lock().await;
+        sessions.remove(serial)
+    };
+
+    if let Some(session) = session {
+        let (device_serial, window_label, shutdown, process) = {
+            let mut session_guard = session.lock().await;
+            session_guard.status = DeviceSessionStatus::Stopping;
+            emit_session_update(app, &session_guard).await;
+            (
+                session_guard.device_serial.clone(),
+                session_guard.window_label.clone(),
+                session_guard.shutdown.clone(),
+                session_guard.process.clone(),
+            )
+        };
+
+        shutdown.notify_one();
+        let _ = scrcpy::stop_server(&device_serial, 27183).await;
+
+        let mut taken_process = {
+            let mut guard = process.lock().await;
+            guard.take()
+        };
+        if let Some(mut process) = taken_process.take() {
+            let _ = process.kill().await;
+        }
+
+        {
+            let mut session_guard = session.lock().await;
+            session_guard.status = DeviceSessionStatus::Stopped;
+            emit_session_update(app, &session_guard).await;
+        }
+
+        if close_window {
+            if let Some(window) = app.get_webview_window(&window_label) {
+                let _ = window.close();
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn disconnect_device_session_by_window_label(
+    app: &AppHandle,
+    sessions_map: &Arc<Mutex<HashMap<String, Arc<Mutex<ScrcpySession>>>>>,
+    window_label: &str,
+) -> Result<(), String> {
+    let session_refs: Vec<(String, Arc<Mutex<ScrcpySession>>)> = {
+        let sessions = sessions_map.lock().await;
+        sessions
+            .iter()
+            .map(|(serial, session)| (serial.clone(), session.clone()))
+            .collect()
+    };
+
+    for (serial, session) in session_refs {
+        let matches_window = {
+            let guard = session.lock().await;
+            guard.window_label == window_label
+        };
+        if matches_window {
+            return disconnect_device_session(app, sessions_map, &serial, false).await;
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -236,35 +314,7 @@ pub async fn disconnect_device(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let session = {
-        let mut sessions = state.sessions.lock().await;
-        sessions.remove(&serial)
-    };
-
-    if let Some(session) = session {
-        let mut session_guard = session.lock().await;
-        let window_label = session_guard.window_label.clone();
-        session_guard.status = DeviceSessionStatus::Stopping;
-        emit_session_update(&app, &session_guard).await;
-        session_guard.shutdown.notify_one();
-        scrcpy::stop_server(&session_guard.device_serial, 27183).await;
-        let process = session_guard.process.clone();
-        drop(session_guard);
-        let mut taken_process = {
-            let mut guard = process.lock().await;
-            guard.take()
-        };
-        if let Some(mut process) = taken_process.take() {
-            let _ = process.kill().await;
-        }
-        let mut session_guard = session.lock().await;
-        session_guard.status = DeviceSessionStatus::Stopped;
-        emit_session_update(&app, &session_guard).await;
-        if let Some(window) = app.get_webview_window(&window_label) {
-            let _ = window.close();
-        }
-    }
-    Ok(())
+    disconnect_device_session(&app, &state.sessions, &serial, true).await
 }
 
 #[tauri::command]

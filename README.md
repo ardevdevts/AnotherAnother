@@ -4,10 +4,17 @@
 
 <h1 align="center">AnotherAnother</h1>
 
+<p align="center">A desktop app for mirroring and controlling Android devices. Built with Tauri, React, and Rust.</p>
 
-Fork from "https://github.com/Zfinix/another". :3 Built to make the UI shortcut first and eliminate struggles in the UI by switching to tailwindcss and shadcn. Hotkeys based. MCP/AI eliminated, as well as mac builds cuz i cant personally sign them and whatever, dont have a Mac. Also to fix windows issues in terminal spamming in the communication to the CLI. 
+> A fork of [Zfinix/another](https://github.com/Zfinix/another) focused on stability and keyboard-driven workflows.
 
-A desktop app for mirroring and controlling Android devices. Built with Tauri, React, and Rust.
+**Key differences from the original:**
+
+- **UI-first design** — Rebuilt with Tailwind CSS and shadcn/ui components
+- **Multi-window architecture** — Each device runs in its own isolated window; if one crashes, others remain unaffected
+- **Keyboard-centric** — All actions accessible via hotkeys
+- **Reduced scope** — MCP/AI features removed for a leaner codebase
+- **Fixed Windows CLI spam** — Terminal noise from ADB communication resolved
 
 ![another](image.png)
 
@@ -15,51 +22,49 @@ Uses a bundled [scrcpy-server](https://github.com/Genymobile/scrcpy) to stream v
 
 ## Download
 
-Check releases
-
-
+Download the latest release for your platform from the [Releases](https://github.com/ardevdevts/another/releases) page.
 
 ## Features
 
 - Real-time screen mirroring via H.264/H.265 decoding
-- Adaptive video bitrate that adjusts in real-time based on screen activity
-- Macros -- record, replay, import, export, and rename device interactions
-- Device nicknames -- give your devices custom names
-- WiFi mirroring -- go wireless with one click
-- Device audio forwarding (Android 11+)
-- Screen recording (saves as .webm)
-- Touch, keyboard, scroll, and navigation input forwarding
-- Command bar with keyboard shortcuts for every action
-- Configurable video quality (resolution, FPS, bitrate, codec)
+- Adaptive bitrate that responds to screen activity in real time
+- Macros — record, replay, import, export, and rename device interactions
+- Device nicknames — assign custom names to each device
+- WiFi mirroring — connect wirelessly with one click
+- Audio forwarding (Android 11+)
+- Screen recording (WebM format)
+- Input forwarding — touch, keyboard, scroll, and navigation buttons
+- Command bar with keyboard shortcuts for all actions
+- Configurable video quality — resolution, FPS, bitrate, and codec
 - Screenshot capture
 - Automatic device detection via ADB
-- Light/dark/auto theme
+- Light, dark, and auto themes
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `⌘K` | Command Bar |
-| `⌘S` | Screenshot |
-| `⌘⇧R` | Record / Stop Recording |
-| `⌘+` / `⌘-` | Volume Up / Down |
-| `⌘M` | Mute / Unmute Audio |
-| `⌘H` | Home |
-| `⌘B` | Back |
-| `⌘R` | Recent Apps |
-| `⌘P` | Power |
-| `⌘⇧M` | Record / Stop Macro |
-| `⌘D` | Disconnect |
-| `⌘T` | Toggle Theme |
-| `⌘,` | Settings |
-
+| Shortcut    | Action                  |
+| ----------- | ----------------------- |
+| `⌘K`        | Command Bar             |
+| `⌘S`        | Screenshot              |
+| `⌘⇧R`       | Record / Stop Recording |
+| `⌘+` / `⌘-` | Volume Up / Down        |
+| `⌘M`        | Mute / Unmute Audio     |
+| `⌘H`        | Home                    |
+| `⌘B`        | Back                    |
+| `⌘R`        | Recent Apps             |
+| `⌘P`        | Power                   |
+| `⌘⇧M`       | Record / Stop Macro     |
+| `⌘D`        | Disconnect              |
+| `⌘T`        | Toggle Theme            |
+| `⌘,`        | Settings                |
 
 ## Platform Support
 
-| Platform | Status |
-|----------|--------|
-| Linux | Supported |
-| Windows | Supported |
+| Platform | Status           | Notes                                            |
+| -------- | ---------------- | ------------------------------------------------ |
+| Linux    | ✅ Supported     | Tested on Ubuntu/Debian                          |
+| Windows  | ✅ Supported     | Native and WSL builds                            |
+| macOS    | ❌ Not supported | Code signing requirements; contributions welcome |
 
 ## Prerequisites
 

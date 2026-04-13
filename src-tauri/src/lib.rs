@@ -56,6 +56,23 @@ pub fn run() {
         .on_menu_event(|app, event| {
             let _ = app.emit("menu-event", event.id().0.as_str());
         })
+        .on_window_event(|window, event| {
+            if !matches!(event, tauri::WindowEvent::Destroyed) {
+                return;
+            }
+
+            let label = window.label().to_string();
+            if !label.starts_with("device-") {
+                return;
+            }
+
+            let app = window.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let state = app.state::<AppState>();
+                let sessions = state.sessions.clone();
+                let _ = commands::disconnect_device_session_by_window_label(&app, &sessions, &label).await;
+            });
+        })
         .invoke_handler(tauri::generate_handler![
             commands::open_device_window,
             commands::list_device_sessions,
