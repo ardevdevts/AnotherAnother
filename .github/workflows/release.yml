@@ -43,8 +43,6 @@ jobs:
 
       - name: Generate release notes
         id: notes
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           PREV_TAG=$(git tag --sort=-v:refname | grep '^v' | sed -n '2p')
           if [ -z "$PREV_TAG" ]; then
@@ -56,25 +54,7 @@ jobs:
             LOG="- Bug fixes and improvements"
           fi
 
-          AI_NOTES=""
-          if [ -n "$GEMINI_API_KEY" ]; then
-            PROMPT="You are writing release notes for Another, an Android screen mirroring and control desktop app. Given these git commits, write concise user-friendly release notes in markdown. Group into New Features, Improvements, Bug Fixes as needed. Skip merge commits and internal refactors. Keep it short. Do not use em dashes. Start directly with ## What's New\n\nCommits:\n${LOG}"
-
-            BODY=$(jq -n --arg p "$PROMPT" '{contents:[{parts:[{text:$p}]}]}')
-
-            RESPONSE=$(curl -s -X POST \
-              "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}" \
-              -H "Content-Type: application/json" \
-              -d "$BODY" 2>/dev/null || true)
-
-            AI_NOTES=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null || true)
-          fi
-
-          if [ -n "$AI_NOTES" ]; then
-            NOTES="$AI_NOTES"
-          else
-            NOTES=$(printf "## What's New\n\n%s" "$LOG")
-          fi
+          NOTES=$(printf "## What's New\n\n%s" "$LOG")
 
           {
             echo "notes<<EOFDELIM"
@@ -119,8 +99,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ needs.release-notes.outputs.tag }}
           releaseName: "Another ${{ needs.release-notes.outputs.tag }}"
@@ -165,8 +143,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ needs.release-notes.outputs.tag }}
           releaseName: "Another ${{ needs.release-notes.outputs.tag }}"
