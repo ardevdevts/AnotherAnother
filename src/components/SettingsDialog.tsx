@@ -1,11 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import {
-  CheckIcon,
-  ChevronDownIcon,
-  ClipboardDocumentIcon,
-} from "@heroicons/react/24/outline";
-import { Badge } from "./ui/badge";
+import { CheckIcon } from "@heroicons/react/24/outline";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -21,29 +14,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import { Input } from "./ui/input";
 import { Slider } from "./ui/slider";
 import { Switch } from "./ui/switch";
+import { Textarea } from "./ui/textarea";
 import { cn } from "../lib/utils";
 import type { Settings } from "../types";
-import { CODEC_OPTIONS, PRESETS, RESOLUTION_OPTIONS } from "../types";
-
-const DEFAULT_MCP_PORT = 7070;
-
-function getMcpUrl(port: number) {
-  return `http://localhost:${port}/mcp`;
-}
-
-function getMcpConfig(port: number) {
-  return JSON.stringify(
-    {
-      mcpServers: {
-        another: { type: "http", url: getMcpUrl(port) },
-      },
-    },
-    null,
-    2
-  );
-}
+import {
+  CODEC_OPTIONS,
+  INPUT_MODE_OPTIONS,
+  ORIENTATION_OPTIONS,
+  PRESETS,
+  RESOLUTION_OPTIONS,
+} from "../types";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -52,10 +35,6 @@ interface SettingsDialogProps {
   activePreset: string;
   onApplyPreset: (name: string) => void;
   onUpdateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
-}
-
-function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text);
 }
 
 function SettingsSection({
@@ -105,62 +84,6 @@ export function SettingsDialog({
   onApplyPreset,
   onUpdateSetting,
 }: SettingsDialogProps) {
-  const [mcpInstructionsOpen, setMcpInstructionsOpen] = useState(false);
-  const [copiedUrl, setCopiedUrl] = useState(false);
-  const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
-
-  const [mcpEnabled, setMcpEnabled] = useState(() => {
-    const stored = localStorage.getItem("mcp_enabled");
-    return stored === null ? true : stored === "true";
-  });
-  const [mcpPort] = useState(() => {
-    const stored = localStorage.getItem("mcp_port");
-    return stored ? parseInt(stored, 10) : DEFAULT_MCP_PORT;
-  });
-  const [mcpRunning, setMcpRunning] = useState(false);
-
-  const checkMcpStatus = useCallback(async () => {
-    try {
-      const running = await invoke<boolean>("get_mcp_status");
-      setMcpRunning(running);
-    } catch {
-      setMcpRunning(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    checkMcpStatus();
-  }, [checkMcpStatus]);
-
-  async function handleMcpToggle(enabled: boolean) {
-    setMcpEnabled(enabled);
-    localStorage.setItem("mcp_enabled", String(enabled));
-    try {
-      if (enabled) {
-        await invoke("start_mcp_server", { port: mcpPort });
-      } else {
-        await invoke("stop_mcp_server");
-      }
-      await checkMcpStatus();
-    } catch {
-      setMcpRunning(false);
-    }
-  }
-
-  function handleCopyUrl() {
-    copyToClipboard(getMcpUrl(mcpPort));
-    setCopiedUrl(true);
-    setTimeout(() => setCopiedUrl(false), 2000);
-  }
-
-  function handleCopySnippet(key: string, text: string) {
-    copyToClipboard(text);
-    setCopiedSnippet(key);
-    setTimeout(() => setCopiedSnippet(null), 2000);
-  }
-
-  const mcpConfig = getMcpConfig(mcpPort);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} className="max-h-[85vh] max-w-2xl overflow-y-auto p-0">
@@ -271,8 +194,192 @@ export function SettingsDialog({
               />
             </SettingRow>
             <p className="text-xs text-muted-foreground">Requires Android 11+.</p>
+          </SettingsSection>
 
-          
+          <SettingsSection title="Scrcpy">
+            <p className="text-xs text-muted-foreground">
+              Advanced server arguments (bundled server: scrcpy v2.7). Changes reconnect automatically.
+            </p>
+
+            <SettingRow label="Display ID">
+              <Input
+                type="number"
+                min={0}
+                value={String(settings.display_id)}
+                className="w-32"
+                onChange={(event) =>
+                  onUpdateSetting("display_id", Number(event.target.value || "0"))
+                }
+              />
+            </SettingRow>
+
+            <SettingRow label="Orientation">
+              <Select
+                value={settings.orientation}
+                onValueChange={(value) => onUpdateSetting("orientation", value ?? "")}
+              >
+                <SelectTrigger className="min-w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ORIENTATION_OPTIONS.map((option) => (
+                    <SelectItem key={option.value || "auto"} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingRow>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Crop</div>
+              <Input
+                value={settings.crop}
+                placeholder="width:height:x:y (example: 1080:1920:0:0)"
+                onChange={(event) => onUpdateSetting("crop", event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Video Encoder</div>
+              <Input
+                value={settings.video_encoder}
+                placeholder="MediaCodec name (optional)"
+                onChange={(event) => onUpdateSetting("video_encoder", event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Video Codec Options</div>
+              <Input
+                value={settings.video_codec_options}
+                placeholder="key[:type]=value,key[:type]=value"
+                onChange={(event) => onUpdateSetting("video_codec_options", event.target.value)}
+              />
+            </div>
+
+            <SettingRow
+              label="Video Buffer"
+              value={`${settings.video_buffer} ms`}
+            >
+              <div className="w-44" />
+            </SettingRow>
+            <Slider
+              value={settings.video_buffer}
+              onValueChange={(value) => onUpdateSetting("video_buffer", value as number)}
+              min={0}
+              max={500}
+              step={10}
+            />
+
+            <SettingRow
+              label="Audio Buffer"
+              value={`${settings.audio_buffer} ms`}
+            >
+              <div className="w-44" />
+            </SettingRow>
+            <Slider
+              value={settings.audio_buffer}
+              onValueChange={(value) => onUpdateSetting("audio_buffer", value as number)}
+              min={0}
+              max={500}
+              step={10}
+            />
+
+            <SettingRow label="Keyboard Mode">
+              <Select
+                value={settings.keyboard_mode}
+                onValueChange={(value) => onUpdateSetting("keyboard_mode", value ?? "sdk")}
+              >
+                <SelectTrigger className="min-w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {INPUT_MODE_OPTIONS.map((option) => (
+                    <SelectItem key={`kbd-${option.value}`} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingRow>
+
+            <SettingRow label="Mouse Mode">
+              <Select
+                value={settings.mouse_mode}
+                onValueChange={(value) => onUpdateSetting("mouse_mode", value ?? "sdk")}
+              >
+                <SelectTrigger className="min-w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {INPUT_MODE_OPTIONS.map((option) => (
+                    <SelectItem key={`mouse-${option.value}`} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingRow>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Shortcut Modifier</div>
+              <Input
+                value={settings.shortcut_mod}
+                placeholder="lalt,lsuper"
+                onChange={(event) => onUpdateSetting("shortcut_mod", event.target.value)}
+              />
+            </div>
+
+            <SettingRow label="Show Touches">
+              <Switch
+                checked={settings.show_touches}
+                onCheckedChange={(checked) => onUpdateSetting("show_touches", checked)}
+              />
+            </SettingRow>
+
+            <SettingRow label="Stay Awake">
+              <Switch
+                checked={settings.stay_awake}
+                onCheckedChange={(checked) => onUpdateSetting("stay_awake", checked)}
+              />
+            </SettingRow>
+
+            <SettingRow label="Turn Screen Off on Start">
+              <Switch
+                checked={settings.turn_screen_off}
+                onCheckedChange={(checked) => onUpdateSetting("turn_screen_off", checked)}
+              />
+            </SettingRow>
+
+            <SettingRow label="Disable Clipboard Autosync">
+              <Switch
+                checked={settings.no_clipboard_autosync}
+                onCheckedChange={(checked) =>
+                  onUpdateSetting("no_clipboard_autosync", checked)
+                }
+              />
+            </SettingRow>
+
+            <SettingRow label="Power Off Screen on Close">
+              <Switch
+                checked={settings.power_off_on_close}
+                onCheckedChange={(checked) => onUpdateSetting("power_off_on_close", checked)}
+              />
+            </SettingRow>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Extra Server Args</div>
+              <Textarea
+                value={settings.extra_server_args}
+                placeholder="Example: max_fps=120 no_downsize_on_error=true"
+                className="min-h-20"
+                onChange={(event) => onUpdateSetting("extra_server_args", event.target.value)}
+              />
+              <div className="text-xs text-muted-foreground">
+                Space-separated arguments appended to server command.
+              </div>
+            </div>
           </SettingsSection>
         </div>
 

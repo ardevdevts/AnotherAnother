@@ -10,12 +10,29 @@ use crate::adb;
 const SCRCPY_SERVER_REMOTE_PATH: &str = "/data/local/tmp/scrcpy-server.jar";
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
 pub struct StreamSettings {
     pub max_size: u32,
     pub max_fps: u32,
     pub video_bit_rate: u32,
     pub video_codec: String,
     pub audio: bool,
+    pub video_encoder: String,
+    pub video_codec_options: String,
+    pub display_id: u32,
+    pub crop: String,
+    pub orientation: String,
+    pub video_buffer: u32,
+    pub audio_buffer: u32,
+    pub keyboard_mode: String,
+    pub mouse_mode: String,
+    pub show_touches: bool,
+    pub stay_awake: bool,
+    pub turn_screen_off: bool,
+    pub no_clipboard_autosync: bool,
+    pub shortcut_mod: String,
+    pub power_off_on_close: bool,
+    pub extra_server_args: String,
 }
 
 impl Default for StreamSettings {
@@ -26,8 +43,41 @@ impl Default for StreamSettings {
             video_bit_rate: 8000000,
             video_codec: "h264".to_string(),
             audio: false,
+            video_encoder: String::new(),
+            video_codec_options: String::new(),
+            display_id: 0,
+            crop: String::new(),
+            orientation: String::new(),
+            video_buffer: 0,
+            audio_buffer: 0,
+            keyboard_mode: "sdk".to_string(),
+            mouse_mode: "sdk".to_string(),
+            show_touches: false,
+            stay_awake: false,
+            turn_screen_off: false,
+            no_clipboard_autosync: false,
+            shortcut_mod: "lalt,lsuper".to_string(),
+            power_off_on_close: false,
+            extra_server_args: String::new(),
         }
     }
+}
+
+fn parse_extra_args(input: &str) -> Result<Vec<String>> {
+    let mut args = Vec::new();
+    for token in input.split_whitespace() {
+        let valid = token
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_:=,./+%[]".contains(c));
+        if !valid {
+            return Err(anyhow!(
+                "Invalid character in extra server arg: '{}'",
+                token
+            ));
+        }
+        args.push(token.to_string());
+    }
+    Ok(args)
 }
 
 pub struct ConnectedStreams {
@@ -59,30 +109,58 @@ pub async fn start_server(
 
     adb::reverse(serial, "localabstract:scrcpy", port).await?;
 
-    let audio_args = if settings.audio {
-        "audio=true audio_codec=raw"
-    } else {
-        "audio=false"
-    };
+    let mut args = vec![
+        "tunnel_forward=false".to_string(),
+        "control=true".to_string(),
+        format!("audio={}", settings.audio),
+        "audio_codec=raw".to_string(),
+        format!("video_codec={}", settings.video_codec),
+        format!("max_size={}", settings.max_size),
+        format!("max_fps={}", settings.max_fps),
+        format!("video_bit_rate={}", settings.video_bit_rate),
+        format!("display_id={}", settings.display_id),
+        format!("keyboard={}", settings.keyboard_mode),
+        format!("mouse={}", settings.mouse_mode),
+        format!("show_touches={}", settings.show_touches),
+        format!("stay_awake={}", settings.stay_awake),
+        format!("turn_screen_off={}", settings.turn_screen_off),
+        format!("power_off_on_close={}", settings.power_off_on_close),
+        format!("clipboard_autosync={}", !settings.no_clipboard_autosync),
+        format!("video_buffer={}", settings.video_buffer),
+        format!("audio_buffer={}", settings.audio_buffer),
+        format!("shortcut_mod={}", settings.shortcut_mod),
+        "send_device_meta=true".to_string(),
+        "send_dummy_byte=false".to_string(),
+        "log_level=info".to_string(),
+    ];
+
+    if !settings.video_encoder.trim().is_empty() {
+        args.push(format!("video_encoder={}", settings.video_encoder.trim()));
+    }
+
+    if !settings.video_codec_options.trim().is_empty() {
+        args.push(format!(
+            "video_codec_options={}",
+            settings.video_codec_options.trim()
+        ));
+    }
+
+    if !settings.crop.trim().is_empty() {
+        args.push(format!("crop={}", settings.crop.trim()));
+    }
+
+    if !settings.orientation.trim().is_empty() {
+        args.push(format!("orientation={}", settings.orientation.trim()));
+    }
+
+    if !settings.extra_server_args.trim().is_empty() {
+        args.extend(parse_extra_args(&settings.extra_server_args)?);
+    }
 
     let server_cmd = format!(
-        "CLASSPATH={path} app_process / com.genymobile.scrcpy.Server 2.7 \
-         tunnel_forward=false \
-         {audio_args} \
-         control=true \
-         video_codec={codec} \
-         max_size={max_size} \
-         max_fps={max_fps} \
-         video_bit_rate={bitrate} \
-         send_device_meta=true \
-         send_dummy_byte=false \
-         log_level=info",
+        "CLASSPATH={path} app_process / com.genymobile.scrcpy.Server 2.7 {args}",
         path = SCRCPY_SERVER_REMOTE_PATH,
-        audio_args = audio_args,
-        codec = settings.video_codec,
-        max_size = settings.max_size,
-        max_fps = settings.max_fps,
-        bitrate = settings.video_bit_rate,
+        args = args.join(" "),
     );
 
     let mut server_process = adb::shell(serial, &server_cmd).await?;

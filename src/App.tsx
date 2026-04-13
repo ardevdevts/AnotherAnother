@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useHotkeys } from "@tanstack/react-hotkeys";
 import type { Settings, Device } from "./types";
@@ -120,17 +120,24 @@ function App() {
 
   const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     const next = { ...settings, [key]: value };
-    if (key !== "audio" && key !== "adaptive") {
+    const adaptiveManagedKeys: Array<keyof Settings> = [
+      "max_size",
+      "max_fps",
+      "video_bit_rate",
+    ];
+    if (adaptiveManagedKeys.includes(key)) {
       next.adaptive = false;
       adaptive.disableAdaptive();
     }
     setSettings(next);
-    if (key !== "audio" && key !== "adaptive") setActivePreset("");
-    if (connectedDevice) scheduleReconnect(next);
+    if (adaptiveManagedKeys.includes(key)) setActivePreset("");
+    if (key !== "audio" && key !== "adaptive") {
+      if (connectedDevice) scheduleReconnect(next);
+    }
   };
 
   const applyPreset = (name: string) => {
-    const next = { ...PRESETS[name], audio: settings.audio };
+    const next = { ...settings, ...PRESETS[name], audio: settings.audio };
     setSettings(next);
     setActivePreset(name);
     adaptive.disableAdaptive();
@@ -178,14 +185,6 @@ function App() {
       },
     },
   ]);
-
-  useEffect(() => {
-    const mcpEnabled = localStorage.getItem("mcp_enabled") !== "false";
-    if (mcpEnabled) {
-      const port = parseInt(localStorage.getItem("mcp_port") || "7070", 10);
-      invoke("start_mcp_server", { port }).catch(() => { });
-    }
-  }, []);
 
   return (
     <>

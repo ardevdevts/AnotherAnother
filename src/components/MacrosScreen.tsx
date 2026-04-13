@@ -102,7 +102,7 @@ export function MacrosScreen({
   const shortDir = macrosDir.length > 40 ? `...${macrosDir.slice(macrosDir.length - 37)}` : macrosDir;
 
   return (
-    <div className="relative flex h-screen w-screen flex-col items-center justify-center bg-gradient-to-b from-background to-muted/30 px-5 pt-10">
+    <div className="relative flex h-screen w-screen flex-col items-center justify-center bg-linear-to-b from-background to-muted/30 px-5 pt-10">
       <div
         className="absolute top-0 right-0 left-0 flex h-10 items-center justify-between border-b border-border bg-card/80 px-2 backdrop-blur-sm [-webkit-app-region:drag]"
         data-tauri-drag-region

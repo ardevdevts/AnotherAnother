@@ -18,6 +18,22 @@ export interface Settings {
   video_codec: string;
   audio: boolean;
   adaptive: boolean;
+  video_encoder: string;
+  video_codec_options: string;
+  display_id: number;
+  crop: string;
+  orientation: string;
+  video_buffer: number;
+  audio_buffer: number;
+  keyboard_mode: string;
+  mouse_mode: string;
+  show_touches: boolean;
+  stay_awake: boolean;
+  turn_screen_off: boolean;
+  no_clipboard_autosync: boolean;
+  shortcut_mod: string;
+  power_off_on_close: boolean;
+  extra_server_args: string;
 }
 
 export type MacroEvent =
@@ -63,10 +79,53 @@ export function getDeviceDisplayName(device: Device): string {
 
 export type ThemePreference = "light" | "dark" | "auto";
 
+export const DEFAULT_SCRCPY_SETTINGS = {
+  video_encoder: "",
+  video_codec_options: "",
+  display_id: 0,
+  crop: "",
+  orientation: "",
+  video_buffer: 0,
+  audio_buffer: 0,
+  keyboard_mode: "sdk",
+  mouse_mode: "sdk",
+  show_touches: false,
+  stay_awake: false,
+  turn_screen_off: false,
+  no_clipboard_autosync: false,
+  shortcut_mod: "lalt,lsuper",
+  power_off_on_close: false,
+  extra_server_args: "",
+};
+
 export const PRESETS: Record<string, Settings> = {
-  performance: { max_size: 720, max_fps: 30, video_bit_rate: 2000000, video_codec: "h264", audio: false, adaptive: false },
-  balanced: { max_size: 1024, max_fps: 60, video_bit_rate: 8000000, video_codec: "h264", audio: false, adaptive: false },
-  quality: { max_size: 1920, max_fps: 60, video_bit_rate: 24000000, video_codec: "h264", audio: false, adaptive: false },
+  performance: {
+    max_size: 720,
+    max_fps: 30,
+    video_bit_rate: 2000000,
+    video_codec: "h264",
+    audio: false,
+    adaptive: false,
+    ...DEFAULT_SCRCPY_SETTINGS,
+  },
+  balanced: {
+    max_size: 1024,
+    max_fps: 60,
+    video_bit_rate: 8000000,
+    video_codec: "h264",
+    audio: false,
+    adaptive: false,
+    ...DEFAULT_SCRCPY_SETTINGS,
+  },
+  quality: {
+    max_size: 1920,
+    max_fps: 60,
+    video_bit_rate: 24000000,
+    video_codec: "h264",
+    audio: false,
+    adaptive: false,
+    ...DEFAULT_SCRCPY_SETTINGS,
+  },
 };
 
 export const RESOLUTION_OPTIONS = [
@@ -80,6 +139,22 @@ export const RESOLUTION_OPTIONS = [
 
 export const CODEC_OPTIONS = [
   { value: "h264", label: "H.264" },
+  { value: "h265", label: "H.265 / HEVC" },
+];
+
+export const ORIENTATION_OPTIONS = [
+  { value: "", label: "Auto" },
+  { value: "0", label: "0°" },
+  { value: "90", label: "90°" },
+  { value: "180", label: "180°" },
+  { value: "270", label: "270°" },
+];
+
+export const INPUT_MODE_OPTIONS = [
+  { value: "sdk", label: "SDK" },
+  { value: "uhid", label: "UHID" },
+  { value: "aoa", label: "AOA" },
+  { value: "disabled", label: "Disabled" },
 ];
 
 export interface AdaptiveTier {

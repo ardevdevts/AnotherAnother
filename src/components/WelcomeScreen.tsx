@@ -144,7 +144,7 @@ export function WelcomeScreen({
   };
 
   return (
-    <div className="relative flex h-screen w-screen select-none flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-background to-muted/30 px-5 pt-10">
+    <div className="relative flex h-screen w-screen select-none flex-col items-center justify-center overflow-hidden bg-linear-to-b from-background to-muted/30 px-5 pt-10">
       <div
         className="absolute top-0 right-0 left-0 flex h-10 items-center justify-end border-b border-border bg-card/80 pr-2 backdrop-blur-sm [-webkit-app-region:drag]"
         data-tauri-drag-region
@@ -267,7 +267,7 @@ export function WelcomeScreen({
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-[120] min-w-40 rounded-2xl border border-border bg-popover p-1 shadow-xl"
+          className="fixed z-120 min-w-40 rounded-2xl border border-border bg-popover p-1 shadow-xl"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
           <Button className="w-full justify-start rounded-xl" variant="ghost" size="sm" onClick={() => {

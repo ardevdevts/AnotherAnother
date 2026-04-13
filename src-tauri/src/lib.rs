@@ -82,9 +82,6 @@ pub fn run() {
             commands::wifi_disconnect,
             commands::wifi_enable,
             commands::get_device_ip,
-            commands::start_mcp_server,
-            commands::stop_mcp_server,
-            commands::get_mcp_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
