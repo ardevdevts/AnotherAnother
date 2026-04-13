@@ -10,7 +10,6 @@ import { useDeviceSessions } from "./hooks/useDeviceSessions";
 import { useConnection } from "./hooks/useConnection";
 import { useAdaptiveBitrate } from "./hooks/useAdaptiveBitrate";
 import { useMacro } from "./hooks/useMacro";
-import { useUpdater } from "./hooks/useUpdater";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { MirrorScreen } from "./components/MirrorScreen";
 import { DeviceWindow } from "./components/DeviceWindow";
@@ -56,7 +55,6 @@ function ManagerApp() {
   const { devices, refreshDevices } = useDevices(showToast);
   const { sessionBySerial } = useDeviceSessions(showToast);
   const macro = useMacro({ showToast, onRecordingStopped: () => setShowMacros(true) });
-  const updater = useUpdater(showToast);
 
   const takeScreenshot = useCallback(async () => {
     if (!connectedDeviceRef.current) {
@@ -181,8 +179,7 @@ function ManagerApp() {
     { id: "macro-manage", label: "Manage Macros", keys: [MOD, "⇧", "L"], hotkey: `${MOD_KEY}+Shift+L`, section: "Macros", action: () => setShowMacros(true) },
     { id: "macro-export", label: "Export All Macros", keys: [MOD, "⇧", "E"], hotkey: `${MOD_KEY}+Shift+E`, section: "Macros", action: macro.exportAllMacros },
     { id: "macro-import", label: "Import Macros", keys: [MOD, "⇧", "I"], hotkey: `${MOD_KEY}+Shift+I`, section: "Macros", action: macro.importMacros },
-    { id: "check-updates", label: "Check for Updates", keys: [MOD, "⇧", "U"], hotkey: `${MOD_KEY}+Shift+U`, section: "Actions", action: () => updater.checkForUpdates() },
-  ], [muted, recording, setMuted, toggleRecording, pressButton, takeScreenshot, cycleTheme, disconnect, macro.macroRecording, macro.toggleRecording, macro.macros, macro.playMacro, macro.exportAllMacros, macro.importMacros, updater.checkForUpdates]);
+  ], [muted, recording, setMuted, toggleRecording, pressButton, takeScreenshot, cycleTheme, disconnect, macro.macroRecording, macro.toggleRecording, macro.macros, macro.playMacro, macro.exportAllMacros, macro.importMacros]);
 
   useHotkeys(
     commands.map((command) => ({
