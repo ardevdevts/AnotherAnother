@@ -103,7 +103,7 @@ jobs:
           unzip -jo /tmp/platform-tools.zip platform-tools/adb -d src-tauri/resources/
 
       - name: Build Tauri
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -153,7 +153,7 @@ jobs:
           Copy-Item "$env:TEMP\platform-tools\platform-tools\AdbWinUsbApi.dll" "src-tauri\resources\AdbWinUsbApi.dll"
 
       - name: Build Tauri
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
